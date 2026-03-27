@@ -586,6 +586,50 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Stable: search results extraction captures rich entities",
+    slug: "stable-search-results",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "search-results.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("search-page", entities);
+
+      const searchResults = entities.filter((e) => e._entity === "SearchResult");
+      const links = entities.filter((e) => e._entity === "Link");
+      const contentLinks = links.filter((e) => e.href && !e.href.startsWith("/") && !e.href.startsWith("#"));
+
+      ctx.postcondition(
+        "search results extracted as SearchResult entities",
+        searchResults.length >= 3,
+        ">= 3",
+        searchResults.length,
+      );
+    },
+  },
+  {
+    name: "Stable: docs page extracts sidebar and guide card entities",
+    slug: "stable-docs-entities",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "docs-home.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("docs-page", entities);
+
+      const lists = entities.filter((e) => e._entity === "List");
+      const listItems = entities.filter((e) => e._entity === "ListItem");
+      const links = entities.filter((e) => e._entity === "Link");
+
+      ctx.postcondition(
+        "sidebar navigation list and guide links extracted",
+        lists.length >= 1 && listItems.length >= 4 && links.length >= 7,
+        { lists: ">= 1", items: ">= 4", links: ">= 7" },
+        { lists: lists.length, items: listItems.length, links: links.length },
+      );
+    },
+  },
+  {
     name: "Benign churn: semantic row survives rerender",
     slug: "benign-rerender-survival",
     bucket: "B",
