@@ -1415,6 +1415,72 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Real disruption: fieldset disabled propagates to child button entities",
+    slug: "disruption-fieldset-disabled",
+    bucket: "C",
+    mutationType: "fieldset_disabled_propagation",
+    fixture: "fieldset-disabled.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-lock", before);
+      const validateBtn = before.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      expect(validateBtn, "Validate Card button missing");
+      expect(!validateBtn.disabled, "Validate Card should be enabled initially");
+
+      // Lock payment fieldset — this disables all child inputs and buttons
+      await cdp.click("#lock-btn");
+      ctx.mutate("payment-fieldset-disabled", false);
+      await cdp.waitFor(`document.getElementById('payment-fields').disabled === true`, { timeoutMs: 2000 });
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "disruption-fieldset-disabled", "after-lock");
+
+      const afterLock = await cdp.extractEntities();
+      ctx.observe("after-lock", afterLock);
+      const validateAfterLock = afterLock.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      // The button should now be detected as disabled via fieldset inheritance
+      const lockedCorrectly = Boolean(validateAfterLock?.disabled);
+      ctx.rootCause("payment fieldset locked — child buttons inherit disabled state");
+      ctx.invalidate("action target disabled via fieldset");
+
+      // Verify Address button in shipping fieldset should NOT be affected
+      const verifyAfterLock = afterLock.find(
+        (e) => e._entity === "Button" && e.label === "Verify Address",
+      );
+      const shippingUnaffected = Boolean(verifyAfterLock && !verifyAfterLock.disabled);
+
+      ctx.replan("unlock payment fieldset before using card validation");
+
+      // Unlock
+      await cdp.click("#unlock-btn");
+      ctx.action("unlock-payment", { success: true });
+      await ctx.pause();
+      const afterUnlock = await cdp.extractEntities();
+      ctx.observe("after-unlock", afterUnlock);
+      const validateAfterUnlock = afterUnlock.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      const recovered = Boolean(validateAfterUnlock && !validateAfterUnlock.disabled);
+      ctx.recovery(recovered, { disabled: validateAfterUnlock?.disabled });
+
+      ctx.postcondition(
+        "Validate Card detected as disabled when fieldset locked, re-enabled after unlock",
+        lockedCorrectly && shippingUnaffected && recovered,
+        { locked: true, shippingUnaffected: true, recovered: true },
+        { locked: lockedCorrectly, shippingUnaffected, recovered },
+      );
+
+      // Hard fail on the key assertion
+      expect(
+        lockedCorrectly,
+        `Validate Card button not detected as disabled when parent fieldset is disabled (disabled=${validateAfterLock?.disabled})`,
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",

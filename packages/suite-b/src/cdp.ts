@@ -291,7 +291,22 @@ export class CdpClient {
             { text: el.textContent?.trim().slice(0, 200) || '', visible: true }
           ));
         });
-        // Buttons
+        // Buttons — check both own disabled state and inherited from fieldset
+        const isEffectivelyDisabled = (el) => {
+          if (el.disabled) return true;
+          if (el.getAttribute('aria-disabled') === 'true') return true;
+          // Check for disabled fieldset ancestor (ConceptAgent-inspired precondition grounding)
+          let ancestor = el.closest('fieldset');
+          while (ancestor) {
+            if (ancestor.disabled) {
+              // Exception: elements inside the first legend of a disabled fieldset are NOT disabled
+              const firstLegend = ancestor.querySelector(':scope > legend');
+              if (!firstLegend || !firstLegend.contains(el)) return true;
+            }
+            ancestor = ancestor.parentElement?.closest('fieldset') || null;
+          }
+          return false;
+        };
         document.querySelectorAll('button:not(th button)').forEach((btn, bi) => {
           entities.push(entity(
             btn.id || ('btn-' + bi),
@@ -300,7 +315,7 @@ export class CdpClient {
             0.8,
             {
               label: normalize(btn.textContent || btn.value || btn.getAttribute('aria-label')),
-              disabled: btn.disabled,
+              disabled: isEffectivelyDisabled(btn),
             }
           ));
         });
