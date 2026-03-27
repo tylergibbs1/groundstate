@@ -1081,6 +1081,49 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: entity extraction consistent after staggered async updates",
+    slug: "benign-async-race",
+    bucket: "B",
+    mutationType: "staggered_async_updates",
+    fixture: "async-race.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-refresh", before);
+      const authBefore = firstRowByField(rowsFrom(before), "Service", "auth-service");
+      expect(authBefore, "auth-service row missing");
+      expect(authBefore.Status === "Healthy", `Expected Status=Healthy, got ${authBefore.Status}`);
+
+      await cdp.click("#refresh-btn");
+      ctx.mutate("staggered-refresh-started", true);
+      // Wait for all staggered updates to complete (4 rows * 150ms = 600ms, give margin)
+      await cdp.waitFor(`document.getElementById("status").textContent === "All refreshed"`, { timeoutMs: 3000 });
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-async-race", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-refresh", after);
+      const authAfter = firstRowByField(rowsFrom(after), "Service", "auth-service");
+      const survived = Boolean(
+        authAfter &&
+        authAfter.Latency === "22ms" &&
+        authAfter.Status === "Degraded" &&
+        authAfter.Uptime === "99.85%"
+      );
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "auth-service row reflects final async update values",
+        survived,
+        { Latency: "22ms", Status: "Degraded", Uptime: "99.85%" },
+        {
+          Latency: authAfter?.Latency ?? null,
+          Status: authAfter?.Status ?? null,
+          Uptime: authAfter?.Uptime ?? null,
+        },
+      );
+    },
+  },
+  {
     name: "Benign churn: concurrent mutations (update + insert) in same tick",
     slug: "benign-concurrent-mutation",
     bucket: "B",
