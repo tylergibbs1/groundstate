@@ -36,7 +36,7 @@ impl Tracer {
 
     /// Record a navigation event.
     pub fn record_navigation(&self, url: impl Into<String>, status: Option<i32>) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Navigation {
@@ -48,8 +48,13 @@ impl Tracer {
     }
 
     /// Record an extraction event.
-    pub fn record_extraction(&self, entity_type: impl Into<String>, count: usize, duration_ms: u64) {
-        let mut inner = self.inner.write().unwrap();
+    pub fn record_extraction(
+        &self,
+        entity_type: impl Into<String>,
+        count: usize,
+        duration_ms: u64,
+    ) {
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Extraction {
@@ -69,7 +74,7 @@ impl Tracer {
         result_count: usize,
         duration_ms: u64,
     ) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Query {
@@ -84,7 +89,7 @@ impl Tracer {
 
     /// Record an execution event.
     pub fn record_execution(&self, step: ExecutionStep, result: ExecutionResult) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Execution {
@@ -97,7 +102,7 @@ impl Tracer {
 
     /// Record a state change event.
     pub fn record_state_change(&self, description: impl Into<String>, invalidated_count: usize) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::StateChange {
@@ -115,7 +120,7 @@ impl Tracer {
         message: impl Into<String>,
         context: Option<serde_json::Value>,
     ) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Error {
@@ -128,8 +133,13 @@ impl Tracer {
     }
 
     /// Record an observation event.
-    pub fn record_observation(&self, url: impl Into<String>, entity_count: usize, duration_ms: u64) {
-        let mut inner = self.inner.write().unwrap();
+    pub fn record_observation(
+        &self,
+        url: impl Into<String>,
+        entity_count: usize,
+        duration_ms: u64,
+    ) {
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Observation {
@@ -154,7 +164,7 @@ impl Tracer {
         removed_count: usize,
         entity_count: usize,
     ) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let seq = inner.next_seq;
         inner.next_seq += 1;
         inner.events.push(TraceEvent::Snapshot {
@@ -173,14 +183,18 @@ impl Tracer {
 
     /// Get all trace events.
     pub fn events(&self) -> Vec<TraceEvent> {
-        self.inner.read().unwrap().events.clone()
+        self.inner
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .events
+            .clone()
     }
 
     /// Get events since a given sequence number (exclusive).
     pub fn events_since(&self, since_seq: u64) -> Vec<TraceEvent> {
         self.inner
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .events
             .iter()
             .filter(|e| e.seq() > since_seq)
@@ -190,12 +204,16 @@ impl Tracer {
 
     /// Get the current sequence number.
     pub fn current_seq(&self) -> u64 {
-        self.inner.read().unwrap().next_seq - 1
+        self.inner
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .next_seq
+            - 1
     }
 
     /// Serialize the full trace to a TraceData struct.
     pub fn to_trace_data(&self) -> TraceData {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
         let duration = now - inner.started_at;
         TraceData {

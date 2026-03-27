@@ -2,10 +2,10 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use gs_execute::{execute_action, SessionState};
+use gs_execute::{SessionState, execute_action};
 use gs_extract::actions::ActionDeriver;
-use gs_transport::cdp::CdpTransport;
 use gs_transport::BrowserTransport;
+use gs_transport::cdp::CdpTransport;
 use gs_types::*;
 
 const CHROME_PATHS: &[&str] = &[
@@ -18,14 +18,17 @@ const CHROME_PATHS: &[&str] = &[
 ];
 
 fn find_chrome() -> Option<PathBuf> {
-    CHROME_PATHS
-        .iter()
-        .map(PathBuf::from)
-        .find(|p| p.exists())
+    CHROME_PATHS.iter().map(PathBuf::from).find(|p| p.exists())
 }
 
 fn find_fixture() -> PathBuf {
-    let mut path = std::env::current_dir().unwrap();
+    let mut path = match std::env::current_dir() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error: cannot determine current directory: {e}");
+            std::process::exit(1);
+        }
+    };
     // Walk up until we find the fixtures directory
     loop {
         let candidate = path.join("fixtures/invoices.html");
@@ -33,7 +36,8 @@ fn find_fixture() -> PathBuf {
             return candidate;
         }
         if !path.pop() {
-            panic!("Could not find fixtures/invoices.html — run from the repo root");
+            eprintln!("Error: could not find fixtures/invoices.html — run from the repo root");
+            std::process::exit(1);
         }
     }
 }
@@ -46,14 +50,20 @@ async fn main() {
     println!();
 
     // 1. Find Chrome
-    let chrome_path = find_chrome().expect(
-        "Chrome not found. Install Google Chrome or set CHROME_PATH env var.",
-    );
+    let chrome_path = match find_chrome() {
+        Some(p) => p,
+        None => {
+            eprintln!("Error: Chrome not found. Install Google Chrome or set CHROME_PATH env var.");
+            std::process::exit(1);
+        }
+    };
     println!("→ Chrome: {}", chrome_path.display());
 
     // 2. Parse flags
     let args: Vec<String> = std::env::args().collect();
-    let headless = !args.iter().any(|a| a == "--visible" || a == "--no-headless");
+    let headless = !args
+        .iter()
+        .any(|a| a == "--visible" || a == "--no-headless");
 
     // 3. Find fixture HTML
     let fixture_path = find_fixture();
@@ -80,12 +90,18 @@ async fn main() {
         chrome_args.push("--window-size=1280,900".to_string());
     }
 
-    let mut chrome = Command::new(&chrome_path)
+    let mut chrome = match Command::new(&chrome_path)
         .args(&chrome_args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .expect("Failed to launch Chrome");
+    {
+        Ok(child) => child,
+        Err(e) => {
+            eprintln!("Error: failed to launch Chrome: {e}");
+            std::process::exit(1);
+        }
+    };
 
     // Give Chrome a moment to start (visible mode needs a bit longer)
     let startup_wait = if headless { 2 } else { 3 };
@@ -155,7 +171,8 @@ async fn get_ws_url(port: u16) -> String {
         return url.to_string();
     }
 
-    panic!("Could not get page WebSocket URL from Chrome on port {port}");
+    eprintln!("Error: could not get page WebSocket URL from Chrome on port {port}");
+    std::process::exit(1);
 }
 
 async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -203,7 +220,11 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
                     .join(", ")
             })
             .unwrap_or_default();
-        let row_count = table.properties.get("row_count").and_then(|v| v.as_u64()).unwrap_or(0);
+        let row_count = table
+            .properties
+            .get("row_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         println!("    Table: [{headers}] — {row_count} rows");
     }
 
@@ -211,39 +232,54 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
     println!("  ✓ Found {} row(s)", rows.len());
 
     // Query with filter: unpaid invoices > 10000
-    let unpaid_large = state.graph.query(&EntityKind::TableRow, Some(&|e: &SemanticEntity| {
-        e.properties.get("Status").and_then(|v| v.as_str()) == Some("Unpaid")
-            && e.properties
-                .get("Amount")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(0.0)
-                > 10000.0
-    }));
+    let unpaid_large = state.graph.query(
+        &EntityKind::TableRow,
+        Some(&|e: &SemanticEntity| {
+            e.properties.get("Status").and_then(|v| v.as_str()) == Some("Unpaid")
+                && e.properties
+                    .get("Amount")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0)
+                    > 10000.0
+        }),
+    );
     println!(
         "  ✓ Unpaid invoices > $10,000: {} match(es)",
         unpaid_large.len()
     );
     for row in &unpaid_large {
-        let vendor = row.properties.get("Vendor").and_then(|v| v.as_str()).unwrap_or("?");
-        let amount = row.properties.get("Amount").and_then(|v| v.as_str()).unwrap_or("?");
+        let vendor = row
+            .properties
+            .get("Vendor")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let amount = row
+            .properties
+            .get("Amount")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
         println!("    → {vendor}: ${amount}");
     }
 
     // ── Step 5: Derive actions ──
     print_step(5, "Deriving available actions");
-    let table = tables.first().expect("no table found");
+    let table = tables.first().ok_or("no table found in state graph")?;
     let table_actions = ActionDeriver::derive_actions(table, &state.graph);
     println!("  ✓ {} action(s) available:", table_actions.len());
     for action in &table_actions {
-        println!("    • {} (confidence: {:.0}%)", action.name, action.confidence * 100.0);
+        println!(
+            "    • {} (confidence: {:.0}%)",
+            action.name,
+            action.confidence * 100.0
+        );
     }
 
     // ── Step 6: Execute an action (sort by Amount) ──
     let sort_action = table_actions
         .iter()
         .find(|a| a.name.contains("Amount"))
-        .expect("no Sort by Amount action");
+        .ok_or("no Sort by Amount action found")?;
 
     print_step(6, &format!("Executing: {}", sort_action.name));
 
@@ -258,7 +294,10 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
     println!("  ✓ Status: {:?}", result.status);
     println!("  ✓ Duration: {}ms", result.duration_ms);
     if let Some(err) = &result.error {
-        println!("  ⚠ Error: {} (recoverable: {})", err.message, err.recoverable);
+        println!(
+            "  ⚠ Error: {} (recoverable: {})",
+            err.message, err.recoverable
+        );
     }
     for pc in &result.postconditions {
         let icon = if pc.passed { "✓" } else { "✗" };
@@ -288,8 +327,13 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
                 count,
                 seq,
                 ..
-            } => ("📦", format!("[{seq}] Extract {count} {entity_type} entities")),
-            TraceEvent::Execution { step, result, seq, .. } => {
+            } => (
+                "📦",
+                format!("[{seq}] Extract {count} {entity_type} entities"),
+            ),
+            TraceEvent::Execution {
+                step, result, seq, ..
+            } => {
                 let status = match result.status {
                     ExecutionStatus::Success => "✓",
                     ExecutionStatus::Failed => "✗",
@@ -305,7 +349,10 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
                 result_count,
                 seq,
                 ..
-            } => ("🔍", format!("[{seq}] Query {entity_type} → {result_count} results")),
+            } => (
+                "🔍",
+                format!("[{seq}] Query {entity_type} → {result_count} results"),
+            ),
             TraceEvent::StateChange {
                 description, seq, ..
             } => ("Δ ", format!("[{seq}] {description}")),
