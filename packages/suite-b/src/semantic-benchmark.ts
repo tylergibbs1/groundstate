@@ -1252,6 +1252,57 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: content-keyed identity survives shuffle and update without data-attributes",
+    slug: "benign-content-keyed-shuffle",
+    bucket: "B",
+    mutationType: "full_tbody_replacement_shuffled",
+    fixture: "content-keyed.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-shuffle", before);
+      const paymentBefore = firstRowByField(rowsFrom(before), "Service", "payment-svc");
+      expect(paymentBefore, "payment-svc missing before shuffle");
+      expect(paymentBefore.Status === "Warning", `Expected Status=Warning, got ${paymentBefore.Status}`);
+      expect(paymentBefore.Latency === "45ms", `Expected Latency=45ms, got ${paymentBefore.Latency}`);
+
+      await cdp.click("#shuffle-btn");
+      ctx.mutate("shuffle-and-update-all-rows", true);
+      await sleep(400);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-content-keyed-shuffle", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-shuffle", after);
+
+      // payment-svc should be found with updated values despite shuffle
+      const paymentAfter = firstRowByField(rowsFrom(after), "Service", "payment-svc");
+      // api-gateway should now show Warning status
+      const gatewayAfter = firstRowByField(rowsFrom(after), "Service", "api-gateway");
+
+      const survived = Boolean(
+        paymentAfter &&
+        paymentAfter.Status === "Healthy" &&
+        paymentAfter.Latency === "38ms" &&
+        gatewayAfter &&
+        gatewayAfter.Status === "Warning" &&
+        gatewayAfter.Latency === "55ms"
+      );
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "payment-svc and api-gateway have correct updated values after shuffle",
+        survived,
+        { paymentStatus: "Healthy", paymentLatency: "38ms", gatewayStatus: "Warning", gatewayLatency: "55ms" },
+        {
+          paymentStatus: paymentAfter?.Status ?? null,
+          paymentLatency: paymentAfter?.Latency ?? null,
+          gatewayStatus: gatewayAfter?.Status ?? null,
+          gatewayLatency: gatewayAfter?.Latency ?? null,
+        },
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",
