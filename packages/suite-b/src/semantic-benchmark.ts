@@ -766,6 +766,37 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: entity survives when DOM IDs are regenerated",
+    slug: "benign-id-churn-survival",
+    bucket: "B",
+    mutationType: "dom_id_regeneration",
+    fixture: "id-churn.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-churn", before);
+      const aliceBefore = firstRowByField(rowsFrom(before), "Name", "Alice Chen");
+      expect(aliceBefore, "Alice Chen row missing before ID churn");
+
+      await cdp.click("#churn-btn");
+      ctx.mutate("dom-ids-regenerated", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-id-churn-survival", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-churn", after);
+      const aliceAfter = firstRowByField(rowsFrom(after), "Name", "Alice Chen");
+      const survived = Boolean(aliceAfter && aliceAfter.Salary === aliceBefore.Salary);
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Alice Chen row is addressable despite changed DOM IDs",
+        survived,
+        aliceBefore.Salary,
+        aliceAfter?.Salary ?? null,
+      );
+    },
+  },
+  {
     name: "Benign churn: entity identity survives pagination content replacement",
     slug: "benign-pagination-identity",
     bucket: "B",

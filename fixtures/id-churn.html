@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: ID Churn (DOM IDs Change on Re-render)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.5rem 1.25rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; margin-top: 1rem; }
+    button:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <h1>ID Churn: DOM IDs Regenerate on Re-render</h1>
+  <p class="subtitle">Tests whether semantic entity matching survives when all DOM element IDs are regenerated (simulating a framework re-render).</p>
+
+  <table id="employees">
+    <thead>
+      <tr><th>Name</th><th>Department</th><th>Salary</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <button id="churn-btn">Trigger Re-render</button>
+
+  <script>
+    const employees = [
+      { name: "Alice Chen",    dept: "Engineering", salary: "$145,000" },
+      { name: "Bob Martinez",  dept: "Design",      salary: "$120,000" },
+      { name: "Carol Okafor",  dept: "Engineering", salary: "$138,000" },
+      { name: "David Park",    dept: "Marketing",   salary: "$95,000" },
+      { name: "Eva Johansson", dept: "Engineering", salary: "$155,000" },
+    ];
+
+    let renderCount = 0;
+    const tbody = document.getElementById("tbody");
+
+    function render() {
+      renderCount++;
+      // Each render uses different data-row-id values (simulates framework key churn)
+      tbody.innerHTML = employees.map((emp, i) => {
+        const churnId = "r-" + renderCount + "-" + i + "-" + Math.random().toString(36).slice(2, 6);
+        return `<tr data-row-id="${churnId}">
+          <td>${emp.name}</td>
+          <td>${emp.dept}</td>
+          <td>${emp.salary}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    render();
+
+    document.getElementById("churn-btn").addEventListener("click", () => {
+      render();
+    });
+  </script>
+</body>
+</html>
