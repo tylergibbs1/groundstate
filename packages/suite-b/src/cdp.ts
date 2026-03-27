@@ -213,22 +213,47 @@ export class CdpClient {
         };
 
         const entities = [];
+        const ownThead = (tbl) => tbl.querySelector(':scope > thead') || null;
+        const ownTbody = (tbl) => tbl.querySelector(':scope > tbody') || tbl;
+        const ownHeaders = (tbl) => {
+          const thead = ownThead(tbl);
+          const ths = thead
+            ? [...thead.querySelectorAll(':scope > tr > th')]
+            : [...(tbl.querySelector(':scope > tr')?.querySelectorAll(':scope > th') || [])];
+          return ths;
+        };
+        const isVisible = (el) => {
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+        };
+        const ownRows = (tbl) => {
+          const tbody = tbl.querySelector(':scope > tbody');
+          const candidates = tbody
+            ? [...tbody.querySelectorAll(':scope > tr')]
+            : [...tbl.querySelectorAll(':scope > tr')].filter(tr => tr.querySelector(':scope > td'));
+          return candidates.filter(tr => isVisible(tr));
+        };
         document.querySelectorAll('table').forEach((table, ti) => {
           const id = table.id || 'table-' + ti;
-          const headers = [...table.querySelectorAll('th')].map(th => th.textContent.trim());
-          const sortedTh = [...table.querySelectorAll('th')].find(
+          const headerEls = ownHeaders(table);
+          const headers = headerEls.map(th => th.textContent.trim());
+          const sortedTh = headerEls.find(
             th => th.classList.contains('sorted-asc') || th.classList.contains('sorted-desc')
+          );
+          const dataRows = ownRows(table).filter(
+            tr => tr.querySelector(':scope > td')
           );
           entities.push(entity(
             id, 'Table', '#' + id, 0.9,
             {
-            headers, row_count: table.querySelectorAll('tbody tr').length,
+            headers, row_count: dataRows.length,
             sorted_by: sortedTh ? sortedTh.textContent.trim() : null,
             sort_direction: sortedTh ? (sortedTh.classList.contains('sorted-asc') ? 'asc' : 'desc') : null,
             }
           ));
-          table.querySelectorAll('tbody tr').forEach((tr, ri) => {
-            const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+          dataRows.forEach((tr, ri) => {
+            const cells = [...tr.querySelectorAll(':scope > td')].map(td => td.textContent.trim());
             const row = entity(
               id+'-row-'+rowIdentity(tr, ri),
               'TableRow',
@@ -266,7 +291,62 @@ export class CdpClient {
             { text: el.textContent?.trim().slice(0, 200) || '', visible: true }
           ));
         });
-        // Buttons
+        // Buttons — check both own disabled state and inherited from fieldset
+        const isEffectivelyDisabled = (el) => {
+          if (el.disabled) return true;
+          if (el.getAttribute('aria-disabled') === 'true') return true;
+          // Check for disabled fieldset ancestor (ConceptAgent-inspired precondition grounding)
+          let ancestor = el.closest('fieldset');
+          while (ancestor) {
+            if (ancestor.disabled) {
+              // Exception: elements inside the first legend of a disabled fieldset are NOT disabled
+              const firstLegend = ancestor.querySelector(':scope > legend');
+              if (!firstLegend || !firstLegend.contains(el)) return true;
+            }
+            ancestor = ancestor.parentElement?.closest('fieldset') || null;
+          }
+          return false;
+        };
+        // Collect data-* attributes from an element as a plain object
+        const dataAttrs = (el) => {
+          const result = {};
+          for (const attr of el.attributes) {
+            if (attr.name.startsWith('data-')) {
+              const key = attr.name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+              result[key] = attr.value;
+            }
+          }
+          return result;
+        };
+        // Enrich an entity with its semantic context — parent row, form, or section
+        const rowContext = (el) => {
+          const tr = el.closest('tr[data-row-id], tr[data-id], tr[data-key]');
+          if (tr) {
+            const attrs = dataAttrs(tr);
+            const rowId = attrs.rowId || attrs.id || attrs.key || null;
+            return { context_row: rowId, ...Object.fromEntries(Object.entries(attrs).map(([k, v]) => ['data_' + k, v])) };
+          }
+          // Fall back to data-* attrs on the button itself
+          const own = dataAttrs(el);
+          if (Object.keys(own).length > 0) {
+            return Object.fromEntries(Object.entries(own).map(([k, v]) => ['data_' + k, v]));
+          }
+          return {};
+        };
+        // Extract ARIA state attributes (OS-ATLAS inspired — a11y tree carries rich semantic state)
+        const ariaStates = (el) => {
+          const states = {};
+          const role = el.getAttribute('role');
+          if (role) states.role = role;
+          for (const attr of ['aria-expanded', 'aria-selected', 'aria-checked', 'aria-pressed', 'aria-hidden', 'aria-current', 'aria-controls', 'aria-haspopup']) {
+            const val = el.getAttribute(attr);
+            if (val !== null) {
+              const key = 'aria_' + attr.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+              states[key] = val === 'true' ? true : val === 'false' ? false : val;
+            }
+          }
+          return states;
+        };
         document.querySelectorAll('button:not(th button)').forEach((btn, bi) => {
           entities.push(entity(
             btn.id || ('btn-' + bi),
@@ -275,7 +355,9 @@ export class CdpClient {
             0.8,
             {
               label: normalize(btn.textContent || btn.value || btn.getAttribute('aria-label')),
-              disabled: btn.disabled,
+              disabled: isEffectivelyDisabled(btn),
+              ...ariaStates(btn),
+              ...rowContext(btn),
             }
           ));
         });

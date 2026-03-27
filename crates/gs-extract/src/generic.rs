@@ -38,18 +38,55 @@ fn extract_buttons(root: &DomNode, entities: &mut Vec<SemanticEntity>) {
                 .get_attribute("aria-disabled")
                 .is_some_and(|value| value.eq_ignore_ascii_case("true"));
 
+        // Extract ARIA state attributes (OS-ATLAS inspired — a11y tree enrichment)
+        let mut props = serde_json::Map::new();
+        props.insert("label".into(), json!(label));
+        props.insert("disabled".into(), json!(disabled));
+        props.insert(
+            "role".into(),
+            json!(
+                node.get_attribute("role")
+                    .map(ToOwned::to_owned)
+                    .unwrap_or_else(|| "button".to_string())
+            ),
+        );
+
+        for attr in &[
+            "aria-expanded",
+            "aria-selected",
+            "aria-checked",
+            "aria-pressed",
+            "aria-hidden",
+            "aria-current",
+            "aria-controls",
+            "aria-haspopup",
+        ] {
+            if let Some(value) = node.get_attribute(attr) {
+                let key = attr.replace('-', "_");
+                let typed_value = match value {
+                    "true" => json!(true),
+                    "false" => json!(false),
+                    other => json!(other),
+                };
+                props.insert(key, typed_value);
+            }
+        }
+
+        // Extract data-* attributes for row context (CI4A inspired)
+        for pair in node.attributes.chunks(2) {
+            if let (Some(name), Some(value)) = (pair.first(), pair.get(1))
+                && let Some(suffix) = name.strip_prefix("data-")
+            {
+                let key = format!("data_{}", suffix.replace('-', "_"));
+                props.insert(key, json!(value));
+            }
+        }
+
         let button_entity = SemanticEntity::new(
             EntityId(0),
             StableKey::new(EntityKind::Button, fingerprint),
             EntityKind::Button,
-            json!({
-                "label": label,
-                "disabled": disabled,
-                "role": node
-                    .get_attribute("role")
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| "button".to_string()),
-            }),
+            serde_json::Value::Object(props),
             SourceRef {
                 selector: selector_for_node(node),
                 backend_node_id: Some(node.backend_node_id),
@@ -63,8 +100,7 @@ fn extract_buttons(root: &DomNode, entities: &mut Vec<SemanticEntity>) {
 
 fn extract_links(root: &DomNode, entities: &mut Vec<SemanticEntity>) {
     let links = root.find_all(&|node| {
-        node.node_name.eq_ignore_ascii_case("A")
-            && node.get_attribute("href").is_some()
+        node.node_name.eq_ignore_ascii_case("A") && node.get_attribute("href").is_some()
     });
 
     for (index, node) in links.iter().enumerate() {
@@ -80,10 +116,7 @@ fn extract_links(root: &DomNode, entities: &mut Vec<SemanticEntity>) {
         let selector = selector_for_link(node, href);
         let link_entity = SemanticEntity::new(
             EntityId(0),
-            StableKey::new(
-                EntityKind::Link,
-                format!("{}::{}", href, sanitize(&text)),
-            ),
+            StableKey::new(EntityKind::Link, format!("{}::{}", href, sanitize(&text))),
             EntityKind::Link,
             json!({
                 "text": text,
@@ -184,7 +217,12 @@ fn extract_lists(root: &DomNode, entities: &mut Vec<SemanticEntity>) {
                 EntityId(0),
                 StableKey::new(
                     EntityKind::ListItem,
-                    format!("{}-item-{}-{}", list_fingerprint, item_index, sanitize(&text)),
+                    format!(
+                        "{}-item-{}-{}",
+                        list_fingerprint,
+                        item_index,
+                        sanitize(&text)
+                    ),
                 ),
                 EntityKind::ListItem,
                 json!({
@@ -217,12 +255,12 @@ fn is_button(node: &DomNode) -> bool {
     }
 
     node.node_name.eq_ignore_ascii_case("INPUT")
-        && node
-            .get_attribute("type")
-            .is_some_and(|input_type| matches!(
+        && node.get_attribute("type").is_some_and(|input_type| {
+            matches!(
                 input_type.to_ascii_lowercase().as_str(),
                 "button" | "submit" | "reset"
-            ))
+            )
+        })
 }
 
 fn button_label(node: &DomNode) -> String {

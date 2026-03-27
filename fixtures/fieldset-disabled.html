@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fieldset Disabled Propagation Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    fieldset { border: 1px solid #dee2e6; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    fieldset:disabled { opacity: 0.5; }
+    legend { font-weight: 600; padding: 0 8px; }
+    .form-row { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+    label { min-width: 100px; font-weight: 500; }
+    input, select { padding: 6px 12px; border: 1px solid #dee2e6; border-radius: 4px; flex: 1; }
+    button { padding: 8px 16px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; }
+    button.primary { background: #228be6; color: white; border-color: #228be6; }
+    button:disabled, fieldset:disabled button { cursor: not-allowed; opacity: 0.6; }
+    #status { margin: 1rem 0; padding: 12px; border-radius: 4px; display: none; }
+    #status.success { display: block; background: #d3f9d8; color: #2b8a3e; }
+    #status.error { display: block; background: #ffe3e3; color: #c92a2a; }
+    .lock-controls { margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h2>Payment Form — Fieldset Lock</h2>
+  <div class="lock-controls">
+    <button id="lock-btn">Lock Payment Fields</button>
+    <button id="unlock-btn">Unlock Payment Fields</button>
+  </div>
+
+  <form id="payment-form">
+    <fieldset id="payment-fields">
+      <legend>Payment Details</legend>
+      <div class="form-row">
+        <label for="card-number">Card Number</label>
+        <input id="card-number" name="card_number" type="text" placeholder="4242 4242 4242 4242" />
+      </div>
+      <div class="form-row">
+        <label for="expiry">Expiry</label>
+        <input id="expiry" name="expiry" type="text" placeholder="MM/YY" />
+      </div>
+      <div class="form-row">
+        <label for="cvv">CVV</label>
+        <input id="cvv" name="cvv" type="text" placeholder="123" />
+      </div>
+      <button type="button" id="validate-card" class="primary">Validate Card</button>
+    </fieldset>
+
+    <fieldset id="shipping-fields">
+      <legend>Shipping Address</legend>
+      <div class="form-row">
+        <label for="address">Address</label>
+        <input id="address" name="address" type="text" />
+      </div>
+      <div class="form-row">
+        <label for="city">City</label>
+        <input id="city" name="city" type="text" />
+      </div>
+      <button type="button" id="verify-address">Verify Address</button>
+    </fieldset>
+
+    <button type="submit" id="submit-payment" class="primary">Submit Payment</button>
+  </form>
+
+  <div id="status"></div>
+
+  <script>
+    document.getElementById('lock-btn').addEventListener('click', () => {
+      document.getElementById('payment-fields').disabled = true;
+    });
+    document.getElementById('unlock-btn').addEventListener('click', () => {
+      document.getElementById('payment-fields').disabled = false;
+    });
+    document.getElementById('payment-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const status = document.getElementById('status');
+      status.className = 'success';
+      status.textContent = 'Payment submitted successfully';
+    });
+  </script>
+</body>
+</html>

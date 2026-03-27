@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ARIA State Extraction Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    .accordion { max-width: 600px; }
+    .accordion-item { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+    .accordion-trigger { width: 100%; padding: 12px 16px; background: white; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 500; }
+    .accordion-trigger:hover { background: #f8f9fa; }
+    .accordion-trigger[aria-expanded="true"] { background: #e7f5ff; }
+    .accordion-trigger::after { content: "▸"; transition: transform 0.2s; }
+    .accordion-trigger[aria-expanded="true"]::after { transform: rotate(90deg); }
+    .accordion-panel { padding: 0 16px; max-height: 0; overflow: hidden; transition: max-height 0.2s, padding 0.2s; }
+    .accordion-panel[aria-hidden="false"] { max-height: 200px; padding: 12px 16px; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
+    .tab-bar button { padding: 10px 20px; border: none; background: transparent; cursor: pointer; font-size: 14px; color: #868e96; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-bar button[aria-selected="true"] { color: #228be6; border-bottom-color: #228be6; font-weight: 600; }
+    .tab-panel { display: none; padding: 1rem 0; }
+    .tab-panel.active { display: block; }
+    #toggle-status { margin-top: 1rem; padding: 12px 16px; border-radius: 4px; background: #f1f3f5; }
+  </style>
+</head>
+<body>
+  <h2>ARIA-Stateful Widgets</h2>
+
+  <h3>Accordion</h3>
+  <div class="accordion" role="region" aria-label="FAQ">
+    <div class="accordion-item">
+      <button class="accordion-trigger" id="acc-1" aria-expanded="false" aria-controls="panel-1">What is Groundstate?</button>
+      <div class="accordion-panel" id="panel-1" role="region" aria-labelledby="acc-1" aria-hidden="true">
+        Groundstate is a reactive browser runtime that provides durable semantic state for browser agents.
+      </div>
+    </div>
+    <div class="accordion-item">
+      <button class="accordion-trigger" id="acc-2" aria-expanded="false" aria-controls="panel-2">How does entity extraction work?</button>
+      <div class="accordion-panel" id="panel-2" role="region" aria-labelledby="acc-2" aria-hidden="true">
+        Entities are extracted from DOM and accessibility tree snapshots using pluggable extractors.
+      </div>
+    </div>
+    <div class="accordion-item">
+      <button class="accordion-trigger" id="acc-3" aria-expanded="false" aria-controls="panel-3">What about state versioning?</button>
+      <div class="accordion-panel" id="panel-3" role="region" aria-labelledby="acc-3" aria-hidden="true">
+        The state graph versions every entity mutation and supports transitive invalidation.
+      </div>
+    </div>
+  </div>
+
+  <h3>Tabs</h3>
+  <div role="tablist" aria-label="Settings">
+    <button role="tab" id="tab-general" aria-selected="true" aria-controls="panel-general">General</button>
+    <button role="tab" id="tab-security" aria-selected="false" aria-controls="panel-security">Security</button>
+    <button role="tab" id="tab-billing" aria-selected="false" aria-controls="panel-billing">Billing</button>
+  </div>
+  <div class="tab-bar"></div>
+  <div role="tabpanel" id="panel-general" class="tab-panel active" aria-labelledby="tab-general">General settings content.</div>
+  <div role="tabpanel" id="panel-security" class="tab-panel" aria-labelledby="tab-security">Security settings content.</div>
+  <div role="tabpanel" id="panel-billing" class="tab-panel" aria-labelledby="tab-billing">Billing settings content.</div>
+
+  <div id="toggle-status">No changes</div>
+
+  <script>
+    // Accordion behavior
+    document.querySelectorAll('.accordion-trigger').forEach(trigger => {
+      trigger.addEventListener('click', () => {
+        const expanded = trigger.getAttribute('aria-expanded') === 'true';
+        const panel = document.getElementById(trigger.getAttribute('aria-controls'));
+        trigger.setAttribute('aria-expanded', String(!expanded));
+        panel.setAttribute('aria-hidden', String(expanded));
+        document.getElementById('toggle-status').textContent =
+          'Toggled: ' + trigger.textContent.trim() + ' → ' + (!expanded ? 'open' : 'closed');
+      });
+    });
+
+    // Tab behavior
+    document.querySelectorAll('[role="tab"]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('[role="tab"]').forEach(t => t.setAttribute('aria-selected', 'false'));
+        document.querySelectorAll('[role="tabpanel"]').forEach(p => p.classList.remove('active'));
+        tab.setAttribute('aria-selected', 'true');
+        document.getElementById(tab.getAttribute('aria-controls')).classList.add('active');
+        document.getElementById('toggle-status').textContent = 'Selected tab: ' + tab.textContent.trim();
+      });
+    });
+  </script>
+</body>
+</html>

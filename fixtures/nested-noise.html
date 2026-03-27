@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard — Deeply Nested</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8f9fa; }
+    .app-shell { display: flex; min-height: 100vh; }
+    nav.sidebar { width: 220px; background: #1a1a2e; color: white; padding: 1rem; }
+    nav.sidebar a { color: #adb5bd; display: block; padding: 8px 12px; text-decoration: none; }
+    nav.sidebar a:hover { color: white; }
+    .content-area { flex: 1; padding: 2rem; }
+    header.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .breadcrumb { display: flex; gap: 0.5rem; color: #868e96; font-size: 14px; }
+    .breadcrumb a { color: #495057; text-decoration: none; }
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .toolbar button { padding: 6px 14px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .toolbar button:hover { background: #f1f3f5; }
+    .toolbar button.active { background: #228be6; color: white; border-color: #228be6; }
+    .card-wrapper { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e9ecef; }
+    .card-header h2 { margin: 0; font-size: 18px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-info { background: #d0ebff; color: #1971c2; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    th { background: #f8f9fa; font-weight: 600; font-size: 13px; color: #495057; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; }
+    th.sorted-asc::after { content: " ▲"; }
+    th.sorted-desc::after { content: " ▼"; }
+    .status-active { color: #2f9e44; }
+    .status-pending { color: #e8590c; }
+    .status-inactive { color: #868e96; }
+    footer.page-footer { padding: 2rem; text-align: center; color: #adb5bd; font-size: 13px; }
+    footer.page-footer a { color: #868e96; text-decoration: none; }
+    .empty-state { display: none; padding: 40px; text-align: center; color: #adb5bd; }
+    .tooltip-layer { position: absolute; display: none; }
+    .actions-cell button { padding: 4px 10px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 4px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar navigation — decorative noise -->
+    <nav class="sidebar">
+      <div style="font-weight:700;font-size:18px;margin-bottom:1.5rem;">AppCo</div>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/projects">Projects</a>
+      <a href="/team">Team</a>
+      <a href="/settings">Settings</a>
+      <a href="/billing">Billing</a>
+      <a href="/integrations">Integrations</a>
+      <a href="/audit-log">Audit Log</a>
+    </nav>
+
+    <div class="content-area">
+      <!-- Breadcrumb — more noise -->
+      <header class="topbar">
+        <div class="breadcrumb">
+          <a href="/dashboard">Dashboard</a>
+          <span>›</span>
+          <a href="/projects">Projects</a>
+          <span>›</span>
+          <span>Active</span>
+        </div>
+        <div>
+          <button id="btn-export">Export CSV</button>
+          <button id="btn-new-project">+ New Project</button>
+        </div>
+      </header>
+
+      <!-- Toolbar with filter buttons — noise that should be extracted but not confused with data -->
+      <div class="toolbar">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="active">Active</button>
+        <button data-filter="pending">Pending</button>
+        <button data-filter="inactive">Archived</button>
+      </div>
+
+      <!-- The actual data table, buried under multiple wrapper divs -->
+      <div class="card-wrapper">
+        <div class="card-header">
+          <h2>Projects <span class="badge badge-info">6 total</span></h2>
+          <button id="btn-refresh">Refresh</button>
+        </div>
+        <div class="table-scroll-wrapper">
+          <div class="table-inner">
+            <table id="projects">
+              <thead>
+                <tr>
+                  <th data-col="name">Project</th>
+                  <th data-col="lead">Lead</th>
+                  <th data-col="status">Status</th>
+                  <th data-col="budget">Budget</th>
+                  <th data-col="tasks">Open Tasks</th>
+                  <th data-col="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-row-id="proj-atlas">
+                  <td>Atlas</td>
+                  <td>Alice Chen</td>
+                  <td class="status-active">Active</td>
+                  <td>$120,000</td>
+                  <td>14</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="atlas">View</button>
+                    <button class="btn-edit" data-project="atlas">Edit</button>
+                  </td>
+                </tr>
+                <tr data-row-id="proj-beacon">
+                  <td>Beacon</td>
+                  <td>Bob Martinez</td>
+                  <td class="status-active">Active</td>
+                  <td>$85,000</td>
+                  <td>8</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="beacon">View</button>
+                    <button class="btn-edit" data-project="beacon">Edit</button>
+                  </td>
+                </tr>
+                <tr data-row-id="proj-cipher">
+                  <td>Cipher</td>
+                  <td>Carol Wu</td>
+                  <td class="status-pending">Pending</td>
+                  <td>$200,000</td>
+                  <td>22</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="cipher">View</button>
+                    <button class="btn-edit" data-project="cipher">Edit</button>
+                  </td>
+                </tr>
+                <tr data-row-id="proj-delta">
+                  <td>Delta</td>
+                  <td>Dan Kim</td>
+                  <td class="status-inactive">Archived</td>
+                  <td>$45,000</td>
+                  <td>0</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="delta">View</button>
+                    <button class="btn-edit" data-project="delta">Edit</button>
+                  </td>
+                </tr>
+                <tr data-row-id="proj-echo">
+                  <td>Echo</td>
+                  <td>Elena Rossi</td>
+                  <td class="status-active">Active</td>
+                  <td>$310,000</td>
+                  <td>31</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="echo">View</button>
+                    <button class="btn-edit" data-project="echo">Edit</button>
+                  </td>
+                </tr>
+                <tr data-row-id="proj-forge">
+                  <td>Forge</td>
+                  <td>Frank Obi</td>
+                  <td class="status-pending">Pending</td>
+                  <td>$95,000</td>
+                  <td>5</td>
+                  <td class="actions-cell">
+                    <button class="btn-view" data-project="forge">View</button>
+                    <button class="btn-edit" data-project="forge">Edit</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden empty state that could confuse extractors -->
+      <div class="empty-state" id="empty-state">
+        <p>No projects match your filter.</p>
+        <button id="btn-clear-filter">Clear Filters</button>
+      </div>
+
+      <!-- Footer with links — noise -->
+      <footer class="page-footer">
+        <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/docs">Documentation</a> · <a href="/support">Support</a>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Hidden tooltip layer -->
+  <div class="tooltip-layer" id="tooltip">Tooltip content</div>
+
+  <script>
+    // Sort functionality
+    document.querySelectorAll('#projects th').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.cellIndex;
+        if (col === 5) return; // skip Actions column
+        const tbody = document.querySelector('#projects tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const isAsc = th.classList.contains('sorted-asc');
+
+        document.querySelectorAll('#projects th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+        th.classList.add(isAsc ? 'sorted-desc' : 'sorted-asc');
+
+        rows.sort((a, b) => {
+          let va = a.cells[col].textContent.trim();
+          let vb = b.cells[col].textContent.trim();
+          // Strip $ and , for budget
+          const na = parseFloat(va.replace(/[$,]/g, '')), nb = parseFloat(vb.replace(/[$,]/g, ''));
+          if (!isNaN(na) && !isNaN(nb)) return isAsc ? nb - na : na - nb;
+          return isAsc ? vb.localeCompare(va) : va.localeCompare(vb);
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+
+    // Filter buttons
+    document.querySelectorAll('.toolbar button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        const rows = document.querySelectorAll('#projects tbody tr');
+        let visible = 0;
+        rows.forEach(row => {
+          const status = row.querySelector('td:nth-child(3)').textContent.trim().toLowerCase();
+          const show = filter === 'all'
+            || (filter === 'active' && status === 'active')
+            || (filter === 'pending' && status === 'pending')
+            || (filter === 'inactive' && status === 'archived');
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('empty-state').style.display = visible === 0 ? 'block' : 'none';
+        document.querySelector('.card-wrapper').style.display = visible === 0 ? 'none' : '';
+      });
+    });
+  </script>
+</body>
+</html>

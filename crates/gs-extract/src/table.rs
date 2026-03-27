@@ -9,9 +9,10 @@ pub struct TableExtractor;
 impl Extractor for TableExtractor {
     fn extract(&self, observation: &RawObservation) -> Vec<SemanticEntity> {
         let mut entities = Vec::new();
-        let tables = observation.dom.root.find_all(&|n| {
-            n.node_name.eq_ignore_ascii_case("TABLE")
-        });
+        let tables = observation
+            .dom
+            .root
+            .find_all(&|n| n.node_name.eq_ignore_ascii_case("TABLE"));
 
         for (table_idx, table_node) in tables.iter().enumerate() {
             let table_id_attr = table_node.get_attribute("id").unwrap_or("");
@@ -55,7 +56,11 @@ impl Extractor for TableExtractor {
                     EntityKind::TableRow,
                     row_data.clone(),
                     SourceRef {
-                        selector: format!("{} tr:nth-child({})", table_node.selector_path(), row_idx + 1),
+                        selector: format!(
+                            "{} tr:nth-child({})",
+                            table_node.selector_path(),
+                            row_idx + 1
+                        ),
                         backend_node_id: None,
                         a11y_id: None,
                     },
@@ -93,16 +98,30 @@ fn detect_sort_state(table_node: &DomNode, headers: &[String]) -> Option<String>
     None
 }
 
-/// Extract header labels from `<th>` elements in `<thead>` or the first `<tr>`.
+/// Extract header labels from `<th>` elements in the table's own `<thead>`.
+/// Uses direct child lookup to avoid matching nested subtable headers (Prune4Web inspired).
 fn extract_headers(table_node: &DomNode) -> Vec<String> {
-    // Look for <thead> first
-    let thead_nodes = table_node.find_all(&|n| n.node_name.eq_ignore_ascii_case("THEAD"));
+    // Look for direct-child <thead> only (not nested subtable thead)
+    let thead_nodes = table_node.find_children(&|n| n.node_name.eq_ignore_ascii_case("THEAD"));
 
     let header_cells = if let Some(thead) = thead_nodes.first() {
-        thead.find_all(&|n| n.node_name.eq_ignore_ascii_case("TH"))
+        // Get <th> from the thead's direct-child <tr>
+        let header_rows = thead.find_children(&|n| n.node_name.eq_ignore_ascii_case("TR"));
+        header_rows
+            .first()
+            .map(|tr| tr.find_children(&|n| n.node_name.eq_ignore_ascii_case("TH")))
+            .unwrap_or_default()
     } else {
-        // Fall back to <th> anywhere in the table
-        table_node.find_all(&|n| n.node_name.eq_ignore_ascii_case("TH"))
+        // Fall back: find the first direct-child <tr> that contains <th> elements
+        let direct_rows = table_node.find_children(&|n| n.node_name.eq_ignore_ascii_case("TR"));
+        direct_rows
+            .into_iter()
+            .find(|tr| {
+                !tr.find_children(&|n| n.node_name.eq_ignore_ascii_case("TH"))
+                    .is_empty()
+            })
+            .map(|tr| tr.find_children(&|n| n.node_name.eq_ignore_ascii_case("TH")))
+            .unwrap_or_default()
     };
 
     header_cells
@@ -111,38 +130,43 @@ fn extract_headers(table_node: &DomNode) -> Vec<String> {
         .collect()
 }
 
-/// Extract row data from `<tbody>` `<tr>` elements (or all `<tr>` elements if no `<tbody>`).
+/// Extract row data from the table's own `<tbody>` direct-child `<tr>` elements.
+/// Uses direct child lookup to avoid matching nested subtable rows (Prune4Web inspired).
 fn extract_rows(table_node: &DomNode, headers: &[String]) -> Vec<serde_json::Value> {
-    let tbody_nodes = table_node.find_all(&|n| n.node_name.eq_ignore_ascii_case("TBODY"));
+    let tbody_nodes = table_node.find_children(&|n| n.node_name.eq_ignore_ascii_case("TBODY"));
     let rows = if let Some(tbody) = tbody_nodes.first() {
-        tbody.find_all(&|n| n.node_name.eq_ignore_ascii_case("TR"))
+        tbody.find_children(&|n| n.node_name.eq_ignore_ascii_case("TR"))
     } else {
-        table_node.find_all(&|n| n.node_name.eq_ignore_ascii_case("TR"))
+        table_node.find_children(&|n| n.node_name.eq_ignore_ascii_case("TR"))
     };
 
     rows.iter()
         .filter(|tr| {
             // Skip rows that only contain <th> (header rows)
-            let has_td = tr.find_all(&|n| n.node_name.eq_ignore_ascii_case("TD"));
+            let has_td = tr.find_children(&|n| n.node_name.eq_ignore_ascii_case("TD"));
             !has_td.is_empty()
         })
         .map(|tr| {
+            // Use direct-child <td> only, not nested subtable cells
             let cells: Vec<String> = tr
-                .find_all(&|n| n.node_name.eq_ignore_ascii_case("TD"))
+                .find_children(&|n| n.node_name.eq_ignore_ascii_case("TD"))
                 .iter()
                 .map(|td| td.text_content().trim().to_string())
                 .collect();
 
-            // Build a JSON object mapping header names to cell values
             let mut row = serde_json::Map::new();
             for (i, cell) in cells.iter().enumerate() {
-                let key = headers.get(i).cloned().unwrap_or_else(|| format!("col_{i}"));
+                let key = headers
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| format!("col_{i}"));
                 row.insert(key, serde_json::Value::String(cell.clone()));
             }
-            // Also include a _cells array for positional access
             row.insert(
                 "_cells".to_string(),
-                serde_json::Value::Array(cells.into_iter().map(serde_json::Value::String).collect()),
+                serde_json::Value::Array(
+                    cells.into_iter().map(serde_json::Value::String).collect(),
+                ),
             );
 
             serde_json::Value::Object(row)
@@ -193,31 +217,55 @@ mod tests {
 
     #[test]
     fn extracts_table_with_headers_and_rows() {
-        let table = element("table", vec!["id".into(), "invoices".into()], vec![
-            element("thead", vec![], vec![
-                element("tr", vec![], vec![
-                    element("th", vec![], vec![text_node("Vendor")]),
-                    element("th", vec![], vec![text_node("Amount")]),
-                    element("th", vec![], vec![text_node("Status")]),
-                ]),
-            ]),
-            element("tbody", vec![], vec![
-                element("tr", vec![], vec![
-                    element("td", vec![], vec![text_node("Acme Corp")]),
-                    element("td", vec![], vec![text_node("15000")]),
-                    element("td", vec![], vec![text_node("Unpaid")]),
-                ]),
-                element("tr", vec![], vec![
-                    element("td", vec![], vec![text_node("Globex")]),
-                    element("td", vec![], vec![text_node("8000")]),
-                    element("td", vec![], vec![text_node("Paid")]),
-                ]),
-            ]),
-        ]);
+        let table = element(
+            "table",
+            vec!["id".into(), "invoices".into()],
+            vec![
+                element(
+                    "thead",
+                    vec![],
+                    vec![element(
+                        "tr",
+                        vec![],
+                        vec![
+                            element("th", vec![], vec![text_node("Vendor")]),
+                            element("th", vec![], vec![text_node("Amount")]),
+                            element("th", vec![], vec![text_node("Status")]),
+                        ],
+                    )],
+                ),
+                element(
+                    "tbody",
+                    vec![],
+                    vec![
+                        element(
+                            "tr",
+                            vec![],
+                            vec![
+                                element("td", vec![], vec![text_node("Acme Corp")]),
+                                element("td", vec![], vec![text_node("15000")]),
+                                element("td", vec![], vec![text_node("Unpaid")]),
+                            ],
+                        ),
+                        element(
+                            "tr",
+                            vec![],
+                            vec![
+                                element("td", vec![], vec![text_node("Globex")]),
+                                element("td", vec![], vec![text_node("8000")]),
+                                element("td", vec![], vec![text_node("Paid")]),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        );
 
-        let obs = make_dom(element("html", vec![], vec![
-            element("body", vec![], vec![table]),
-        ]));
+        let obs = make_dom(element(
+            "html",
+            vec![],
+            vec![element("body", vec![], vec![table])],
+        ));
 
         let extractor = TableExtractor;
         let entities = extractor.extract(&obs);
@@ -227,7 +275,10 @@ mod tests {
 
         // Table entity
         assert_eq!(entities[0].kind, EntityKind::Table);
-        assert_eq!(entities[0].properties["headers"], json!(["Vendor", "Amount", "Status"]));
+        assert_eq!(
+            entities[0].properties["headers"],
+            json!(["Vendor", "Amount", "Status"])
+        );
         assert_eq!(entities[0].properties["row_count"], 2);
 
         // Row entities
@@ -242,16 +293,28 @@ mod tests {
 
     #[test]
     fn handles_table_without_thead() {
-        let table = element("table", vec![], vec![
-            element("tr", vec![], vec![
-                element("th", vec![], vec![text_node("Name")]),
-                element("th", vec![], vec![text_node("Value")]),
-            ]),
-            element("tr", vec![], vec![
-                element("td", vec![], vec![text_node("Alpha")]),
-                element("td", vec![], vec![text_node("100")]),
-            ]),
-        ]);
+        let table = element(
+            "table",
+            vec![],
+            vec![
+                element(
+                    "tr",
+                    vec![],
+                    vec![
+                        element("th", vec![], vec![text_node("Name")]),
+                        element("th", vec![], vec![text_node("Value")]),
+                    ],
+                ),
+                element(
+                    "tr",
+                    vec![],
+                    vec![
+                        element("td", vec![], vec![text_node("Alpha")]),
+                        element("td", vec![], vec![text_node("100")]),
+                    ],
+                ),
+            ],
+        );
 
         let obs = make_dom(element("html", vec![], vec![table]));
         let entities = TableExtractor.extract(&obs);
@@ -263,11 +326,15 @@ mod tests {
 
     #[test]
     fn no_tables_produces_empty() {
-        let obs = make_dom(element("html", vec![], vec![
-            element("body", vec![], vec![
-                element("div", vec![], vec![text_node("Hello")]),
-            ]),
-        ]));
+        let obs = make_dom(element(
+            "html",
+            vec![],
+            vec![element(
+                "body",
+                vec![],
+                vec![element("div", vec![], vec![text_node("Hello")])],
+            )],
+        ));
 
         let entities = TableExtractor.extract(&obs);
         assert!(entities.is_empty());

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Content-Keyed Identity Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    th { background: #1a1a2e; color: white; }
+    .status { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .status-healthy { background: #d3f9d8; color: #2b8a3e; }
+    .status-warning { background: #fff3bf; color: #e67700; }
+    .status-down { background: #ffe3e3; color: #c92a2a; }
+    #status { margin: 1rem 0; color: #868e96; font-size: 14px; }
+    button { padding: 8px 16px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Service Status — No Row IDs</h2>
+  <p id="status">Ready</p>
+  <button id="shuffle-btn">Shuffle & Update</button>
+  <table id="services">
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Region</th>
+        <th>Status</th>
+        <th>Latency</th>
+        <th>Uptime</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const initialData = [
+      { service: "api-gateway", region: "us-east-1", status: "Healthy", latency: "12ms", uptime: "99.99%" },
+      { service: "auth-service", region: "us-east-1", status: "Healthy", latency: "8ms", uptime: "99.95%" },
+      { service: "payment-svc", region: "eu-west-1", status: "Warning", latency: "45ms", uptime: "99.80%" },
+      { service: "search-api", region: "us-west-2", status: "Healthy", latency: "22ms", uptime: "99.97%" },
+      { service: "notification", region: "ap-south-1", status: "Down", latency: "—", uptime: "98.50%" },
+    ];
+
+    const updatedData = [
+      { service: "search-api", region: "us-west-2", status: "Healthy", latency: "19ms", uptime: "99.97%" },
+      { service: "notification", region: "ap-south-1", status: "Healthy", latency: "31ms", uptime: "99.10%" },
+      { service: "payment-svc", region: "eu-west-1", status: "Healthy", latency: "38ms", uptime: "99.85%" },
+      { service: "api-gateway", region: "us-east-1", status: "Warning", latency: "55ms", uptime: "99.90%" },
+      { service: "auth-service", region: "us-east-1", status: "Healthy", latency: "9ms", uptime: "99.96%" },
+    ];
+
+    function renderTable(data) {
+      const tbody = document.querySelector("#services tbody");
+      // Complete DOM replacement — no data-* attributes on rows
+      tbody.innerHTML = data.map(row => `
+        <tr>
+          <td>${row.service}</td>
+          <td>${row.region}</td>
+          <td><span class="status status-${row.status.toLowerCase()}">${row.status}</span></td>
+          <td>${row.latency}</td>
+          <td>${row.uptime}</td>
+        </tr>
+      `).join("");
+    }
+
+    renderTable(initialData);
+
+    document.getElementById("shuffle-btn").addEventListener("click", () => {
+      document.getElementById("status").textContent = "Updating...";
+      // Simulate staggered network response — rows arrive shuffled with updated values
+      setTimeout(() => {
+        renderTable(updatedData);
+        document.getElementById("status").textContent = "Updated";
+      }, 200);
+    });
+  </script>
+</body>
+</html>

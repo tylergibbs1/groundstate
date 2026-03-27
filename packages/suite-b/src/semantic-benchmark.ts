@@ -1210,6 +1210,416 @@ const CASES: BenchmarkCase[] = [
       );
     },
   },
+  {
+    name: "Benign churn: data table survives noisy DOM with sidebar, toolbar, and footer links",
+    slug: "benign-nested-noise",
+    bucket: "B",
+    mutationType: "filter_hides_rows_via_css",
+    fixture: "nested-noise.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-filter", before);
+
+      // The table should be found despite deep nesting
+      const table = before.find((e) => e._entity === "Table" && e.headers?.includes("Project"));
+      expect(table, "projects table not found in noisy DOM");
+      const echoRow = firstRowByField(rowsFrom(before), "Project", "Echo");
+      expect(echoRow, "Echo row missing before filter");
+
+      // Apply "Active" filter — hides non-active rows via CSS display:none
+      await cdp.click('[data-filter="active"]');
+      ctx.mutate("filter-active-hides-rows", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-nested-noise", "after-filter");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-filter", after);
+
+      // Echo (Active) should still be present, Delta (Archived) should be hidden
+      const echoAfter = firstRowByField(rowsFrom(after), "Project", "Echo");
+      const deltaAfter = firstRowByField(rowsFrom(after), "Project", "Delta");
+      // Delta is hidden by CSS but still in DOM — extraction should still see it
+      // or at minimum, Echo must survive
+      const survived = Boolean(echoAfter && echoAfter.Lead === "Elena Rossi");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Echo project row retains correct Lead after filter applied",
+        survived,
+        "Elena Rossi",
+        echoAfter?.Lead ?? null,
+      );
+    },
+  },
+  {
+    name: "Benign churn: content-keyed identity survives shuffle and update without data-attributes",
+    slug: "benign-content-keyed-shuffle",
+    bucket: "B",
+    mutationType: "full_tbody_replacement_shuffled",
+    fixture: "content-keyed.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-shuffle", before);
+      const paymentBefore = firstRowByField(rowsFrom(before), "Service", "payment-svc");
+      expect(paymentBefore, "payment-svc missing before shuffle");
+      expect(paymentBefore.Status === "Warning", `Expected Status=Warning, got ${paymentBefore.Status}`);
+      expect(paymentBefore.Latency === "45ms", `Expected Latency=45ms, got ${paymentBefore.Latency}`);
+
+      await cdp.click("#shuffle-btn");
+      ctx.mutate("shuffle-and-update-all-rows", true);
+      await sleep(400);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-content-keyed-shuffle", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-shuffle", after);
+
+      // payment-svc should be found with updated values despite shuffle
+      const paymentAfter = firstRowByField(rowsFrom(after), "Service", "payment-svc");
+      // api-gateway should now show Warning status
+      const gatewayAfter = firstRowByField(rowsFrom(after), "Service", "api-gateway");
+
+      const survived = Boolean(
+        paymentAfter &&
+        paymentAfter.Status === "Healthy" &&
+        paymentAfter.Latency === "38ms" &&
+        gatewayAfter &&
+        gatewayAfter.Status === "Warning" &&
+        gatewayAfter.Latency === "55ms"
+      );
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "payment-svc and api-gateway have correct updated values after shuffle",
+        survived,
+        { paymentStatus: "Healthy", paymentLatency: "38ms", gatewayStatus: "Warning", gatewayLatency: "55ms" },
+        {
+          paymentStatus: paymentAfter?.Status ?? null,
+          paymentLatency: paymentAfter?.Latency ?? null,
+          gatewayStatus: gatewayAfter?.Status ?? null,
+          gatewayLatency: gatewayAfter?.Latency ?? null,
+        },
+      );
+    },
+  },
+  {
+    name: "Stable: nested table rows not double-counted in parent table",
+    slug: "stable-nested-table-isolation",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "nested-table.html",
+    run: async (cdp, ctx) => {
+      // Expand all detail rows so subtables are visible
+      await cdp.click('[data-target="detail-001"]');
+      await cdp.click('[data-target="detail-002"]');
+      await cdp.click('[data-target="detail-003"]');
+      await sleep(200);
+
+      const entities = await cdp.extractEntities();
+      ctx.observe("nested-tables", entities);
+
+      const tables = entities.filter((e) => e._entity === "Table");
+      const ordersTable = tables.find((t) => t.headers?.includes("Order ID"));
+
+      // The parent table should have exactly 6 tbody children (3 order rows + 3 detail rows)
+      // but row_count should only count actual data rows, not subtable rows mixed in
+      const orderRows = rowsFrom(entities).filter((r) => r["Order ID"]?.startsWith("ORD-"));
+
+      // Parent table must not report inflated row count from nested subtable rows
+      const rowCountCorrect = ordersTable != null && ordersTable.row_count <= 6;
+      const orderRowsCorrect = orderRows.length >= 3;
+
+      ctx.postcondition(
+        "parent table row count not inflated by nested subtable rows",
+        rowCountCorrect && orderRowsCorrect,
+        { tableRowCount: "<=6", orderEntities: ">=3" },
+        { tableRowCount: ordersTable?.row_count ?? 0, orderEntities: orderRows.length },
+      );
+
+      // Hard fail if the parent table is wildly wrong — this is the real test
+      expect(rowCountCorrect, `parent table row_count=${ordersTable?.row_count ?? "?"}, expected <=6 (got nested rows mixed in)`);
+    },
+  },
+  {
+    name: "Benign churn: expand subtable does not invalidate parent row identity",
+    slug: "benign-nested-table-expand",
+    bucket: "B",
+    mutationType: "subtable_visibility_toggle",
+    fixture: "nested-table.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-expand", before);
+      const bobBefore = firstRowByField(rowsFrom(before), "Customer", "Bob Martinez");
+      expect(bobBefore, "Bob Martinez row missing before expand");
+
+      // Expand Bob's detail row
+      await cdp.click('[data-target="detail-002"]');
+      ctx.mutate("subtable-revealed", true);
+      await sleep(200);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-nested-table-expand", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-expand", after);
+      const bobAfter = firstRowByField(rowsFrom(after), "Customer", "Bob Martinez");
+      const survived = Boolean(bobAfter && bobAfter.Total === "$3,400.00" && bobAfter.Status === "Processing");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Bob Martinez row retains correct data after subtable expanded",
+        survived,
+        { Total: "$3,400.00", Status: "Processing" },
+        { Total: bobAfter?.Total ?? null, Status: bobAfter?.Status ?? null },
+      );
+    },
+  },
+  {
+    name: "Benign churn: hidden rows excluded from extraction after priority filter",
+    slug: "benign-visibility-filter",
+    bucket: "B",
+    mutationType: "css_display_none_filter",
+    fixture: "visibility-filter.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-filter", before);
+      const allRows = rowsFrom(before);
+      expect(allRows.length === 8, `expected 8 rows before filter, got ${allRows.length}`);
+
+      // Filter to "High" priority only (3 rows visible)
+      await cdp.click("#filter-high");
+      ctx.mutate("filter-hides-non-high-rows", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-visibility-filter", "after-filter");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-filter", after);
+      const visibleRows = rowsFrom(after);
+
+      // After filtering to "High", only 3 rows should be extracted
+      // If the extractor ignores visibility, it will still return 8
+      const survived = visibleRows.length === 3;
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "only 3 high-priority rows extracted after filter (hidden rows excluded)",
+        survived,
+        3,
+        visibleRows.length,
+      );
+
+      // Hard fail — this is the key test
+      expect(
+        visibleRows.length <= 3,
+        `extracted ${visibleRows.length} rows after filter, expected 3 (hidden rows leaked into extraction)`,
+      );
+    },
+  },
+  {
+    name: "Real disruption: fieldset disabled propagates to child button entities",
+    slug: "disruption-fieldset-disabled",
+    bucket: "C",
+    mutationType: "fieldset_disabled_propagation",
+    fixture: "fieldset-disabled.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-lock", before);
+      const validateBtn = before.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      expect(validateBtn, "Validate Card button missing");
+      expect(!validateBtn.disabled, "Validate Card should be enabled initially");
+
+      // Lock payment fieldset — this disables all child inputs and buttons
+      await cdp.click("#lock-btn");
+      ctx.mutate("payment-fieldset-disabled", false);
+      await cdp.waitFor(`document.getElementById('payment-fields').disabled === true`, { timeoutMs: 2000 });
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "disruption-fieldset-disabled", "after-lock");
+
+      const afterLock = await cdp.extractEntities();
+      ctx.observe("after-lock", afterLock);
+      const validateAfterLock = afterLock.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      // The button should now be detected as disabled via fieldset inheritance
+      const lockedCorrectly = Boolean(validateAfterLock?.disabled);
+      ctx.rootCause("payment fieldset locked — child buttons inherit disabled state");
+      ctx.invalidate("action target disabled via fieldset");
+
+      // Verify Address button in shipping fieldset should NOT be affected
+      const verifyAfterLock = afterLock.find(
+        (e) => e._entity === "Button" && e.label === "Verify Address",
+      );
+      const shippingUnaffected = Boolean(verifyAfterLock && !verifyAfterLock.disabled);
+
+      ctx.replan("unlock payment fieldset before using card validation");
+
+      // Unlock
+      await cdp.click("#unlock-btn");
+      ctx.action("unlock-payment", { success: true });
+      await ctx.pause();
+      const afterUnlock = await cdp.extractEntities();
+      ctx.observe("after-unlock", afterUnlock);
+      const validateAfterUnlock = afterUnlock.find(
+        (e) => e._entity === "Button" && e.label === "Validate Card",
+      );
+      const recovered = Boolean(validateAfterUnlock && !validateAfterUnlock.disabled);
+      ctx.recovery(recovered, { disabled: validateAfterUnlock?.disabled });
+
+      ctx.postcondition(
+        "Validate Card detected as disabled when fieldset locked, re-enabled after unlock",
+        lockedCorrectly && shippingUnaffected && recovered,
+        { locked: true, shippingUnaffected: true, recovered: true },
+        { locked: lockedCorrectly, shippingUnaffected, recovered },
+      );
+
+      // Hard fail on the key assertion
+      expect(
+        lockedCorrectly,
+        `Validate Card button not detected as disabled when parent fieldset is disabled (disabled=${validateAfterLock?.disabled})`,
+      );
+    },
+  },
+  {
+    name: "Stable: row-scoped buttons carry parent row context in extraction",
+    slug: "stable-row-action-context",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "row-actions.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("row-actions", entities);
+
+      const buttons = entities.filter((e) => e._entity === "Button");
+      const editButtons = buttons.filter((e) => e.label === "Edit");
+      const deleteButtons = buttons.filter((e) => e.label === "Delete");
+
+      // Each Edit/Delete button should carry context about which row it belongs to
+      // via data-user attribute or row association
+      const hasRowContext = editButtons.every(
+        (btn) => btn.data_user || btn.row_id || btn.context_row,
+      );
+
+      ctx.postcondition(
+        "Edit buttons carry row context (data-user or row association)",
+        hasRowContext && editButtons.length === 3 && deleteButtons.length === 3,
+        { editCount: 3, deleteCount: 3, hasContext: true },
+        { editCount: editButtons.length, deleteCount: deleteButtons.length, hasContext: hasRowContext },
+      );
+
+      // Hard fail if buttons don't carry row context
+      expect(
+        hasRowContext,
+        `Edit buttons missing row context — cannot disambiguate which row's Edit to click`,
+      );
+    },
+  },
+  {
+    name: "Benign churn: aria-expanded state tracked through accordion toggle",
+    slug: "benign-aria-expanded-toggle",
+    bucket: "B",
+    mutationType: "aria_expanded_state_change",
+    fixture: "aria-states.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-toggle", before);
+
+      // Find the accordion trigger buttons — they should have aria_expanded property
+      const triggers = before.filter(
+        (e) => e._entity === "Button" && e.label?.includes("Groundstate"),
+      );
+      expect(triggers.length > 0, "accordion trigger not found");
+      const triggerBefore = triggers[0]!;
+      expect(
+        triggerBefore.aria_expanded === false || triggerBefore.aria_expanded === "false",
+        `Expected aria_expanded=false before toggle, got ${triggerBefore.aria_expanded}`,
+      );
+
+      // Toggle the accordion open
+      await cdp.click("#acc-1");
+      ctx.mutate("accordion-expanded", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-aria-expanded-toggle", "after-toggle");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-toggle", after);
+      const triggerAfter = after.find(
+        (e) => e._entity === "Button" && e.label?.includes("Groundstate"),
+      );
+      const expanded = triggerAfter?.aria_expanded === true || triggerAfter?.aria_expanded === "true";
+      if (expanded) ctx.planSurvived();
+
+      ctx.postcondition(
+        "accordion trigger reflects aria-expanded=true after toggle",
+        expanded,
+        true,
+        triggerAfter?.aria_expanded ?? null,
+      );
+
+      expect(
+        expanded,
+        `aria-expanded not detected after toggle (got ${triggerAfter?.aria_expanded})`,
+      );
+    },
+  },
+  {
+    name: "Stable: tab buttons expose aria-selected state",
+    slug: "stable-aria-selected-tabs",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "aria-states.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("tabs", entities);
+
+      const tabs = entities.filter(
+        (e) => e._entity === "Button" && (e.role === "tab" || e.aria_role === "tab"),
+      );
+
+      // Should find 3 tab buttons with aria-selected state
+      const selectedTabs = tabs.filter((t) => t.aria_selected === true || t.aria_selected === "true");
+
+      ctx.postcondition(
+        "3 tab buttons found with aria-selected state, exactly 1 selected",
+        tabs.length === 3 && selectedTabs.length === 1,
+        { tabCount: 3, selectedCount: 1 },
+        { tabCount: tabs.length, selectedCount: selectedTabs.length },
+      );
+
+      expect(
+        tabs.length === 3,
+        `Expected 3 tab buttons with role=tab, got ${tabs.length}`,
+      );
+      expect(
+        selectedTabs.length === 1,
+        `Expected exactly 1 selected tab, got ${selectedTabs.length}`,
+      );
+    },
+  },
+  {
+    name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
+    slug: "stable-noise-entity-count",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "nested-noise.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("noisy-dom", entities);
+
+      const tables = entities.filter((e) => e._entity === "Table");
+      const rows = rowsFrom(entities);
+      const buttons = entities.filter((e) => e._entity === "Button");
+      const links = entities.filter((e) => e._entity === "Link");
+
+      // Exactly 1 data table, 6 data rows
+      ctx.postcondition(
+        "exactly 1 data table with 6 rows extracted from noisy DOM",
+        tables.length === 1 && rows.length === 6,
+        { tables: 1, rows: 6 },
+        { tables: tables.length, rows: rows.length },
+      );
+    },
+  },
 ];
 
 export async function runSemanticBenchmark(

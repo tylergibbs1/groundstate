@@ -57,6 +57,17 @@ impl DomNode {
         results
     }
 
+    /// Find direct child nodes matching a predicate (non-recursive).
+    pub fn find_children<F>(&self, predicate: &F) -> Vec<&DomNode>
+    where
+        F: Fn(&DomNode) -> bool,
+    {
+        self.children
+            .iter()
+            .filter(|child| predicate(child))
+            .collect()
+    }
+
     /// Build a simple CSS-like selector path to this node.
     pub fn selector_path(&self) -> String {
         let tag = self.node_name.to_lowercase();
