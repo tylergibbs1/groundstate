@@ -1,27 +1,33 @@
 {
   "private": true,
   "scripts": {
+    "setup": "pnpm install --frozen-lockfile && pnpm build",
+    "build:rust": "cargo build --workspace",
     "build:native": "cd packages/napi && pnpm build",
     "build:core": "cd packages/core && pnpm build",
-    "build:inspector": "cd packages/inspector && pnpm build",
-    "build:ts": "pnpm build:native && pnpm build:core && pnpm build:inspector",
-    "build:rust": "cargo build --workspace",
+    "build:ts": "pnpm build:native && pnpm build:core",
     "build": "pnpm build:rust && pnpm build:ts",
     "test:rust": "cargo test --workspace",
     "test:ts": "cd packages/core && pnpm test",
     "test:eval": "cd packages/eval && pnpm test",
-    "test:transport": "cd packages/suite-b && pnpm test",
+    "test": "pnpm test:rust && pnpm test:ts && pnpm test:eval",
     "test:semantic": "cd packages/suite-b && pnpm test:semantic",
     "test:semantic:watch": "cd packages/suite-b && pnpm test:semantic:watch",
     "test:semantic:open": "cd packages/suite-b && pnpm test:semantic:open",
+    "test:all": "pnpm test && pnpm test:semantic",
+    "check": "cargo check --workspace && cargo clippy --workspace -- -D warnings",
+    "fmt": "cargo fmt --all",
+    "ci": "pnpm check && pnpm build && pnpm test && pnpm test:semantic",
+    "demo": "cargo run -p gs-demo",
     "agent:anthropic": "cd packages/agent-test && pnpm start:groundstate:ready",
     "inspector:dev": "cd packages/inspector && pnpm dev",
-    "inspector:build": "cd packages/inspector && pnpm build",
-    "test": "pnpm test:rust && pnpm test:ts && pnpm test:eval && pnpm test:transport",
-    "test:all": "pnpm test && pnpm test:semantic",
-    "check": "cargo check --workspace && cargo clippy --workspace -- -D warnings"
+    "inspector:build": "cd packages/inspector && pnpm build"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=22"
   }
 }

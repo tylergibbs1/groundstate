@@ -1,46 +1,86 @@
-# Groundstate build orchestration
+# Groundstate — reactive browser runtime
+# Run `just` with no arguments to see all recipes.
 
-default: check
+default:
+    @just --list --unsorted
 
-# Check everything compiles
-check:
-    cargo check --workspace
-    cargo clippy --workspace -- -D warnings
+# ── Setup ──────────────────────────────────────────────
 
-# Build the full stack
+# Install all dependencies and build the workspace
+setup:
+    pnpm install --frozen-lockfile
+    just build
+
+# ── Build ──────────────────────────────────────────────
+
+# Build everything (Rust → NAPI → TypeScript)
 build: build-rust build-ts
 
 # Build Rust workspace
 build-rust:
     cargo build --workspace
 
-# Build TypeScript packages (requires Rust build first)
-build-ts: build-rust
+# Build TypeScript packages (depends on Rust build for NAPI bindings)
+build-ts:
     cd packages/napi && pnpm build
     cd packages/core && pnpm build
 
-# Run all tests
-test: test-rust test-ts
+# ── Test ───────────────────────────────────────────────
+
+# Run all tests (Rust + TypeScript + eval)
+test: test-rust test-ts test-eval
 
 # Run Rust tests
 test-rust:
     cargo test --workspace
 
-# Run TypeScript tests
+# Run TypeScript unit tests
 test-ts:
     cd packages/core && pnpm test
 
-# Format Rust code
+# Run eval framework tests
+test-eval:
+    cd packages/eval && pnpm test
+
+# Run semantic benchmark suite (requires Chrome)
+bench:
+    cd packages/suite-b && pnpm test:semantic
+
+# Run semantic benchmark with visible browser
+bench-watch:
+    cd packages/suite-b && pnpm test:semantic:watch
+
+# Run semantic benchmark and open HTML report
+bench-open:
+    cd packages/suite-b && pnpm test:semantic:open
+
+# Run everything CI runs
+ci: check build test bench
+
+# ── Lint & Format ─────────────────────────────────────
+
+# Type-check and lint (no build artifacts produced)
+check:
+    cargo check --workspace
+    cargo clippy --workspace -- -D warnings
+
+# Format all code
 fmt:
     cargo fmt --all
+
+# Format + check
+lint: fmt check
+
+# ── Run ────────────────────────────────────────────────
 
 # Run the Rust demo (launches Chrome, full vertical slice)
 demo:
     cargo run -p gs-demo
 
-# Run the Agent SDK mock test (requires ANTHROPIC_API_KEY)
+# Run the agent SDK mock test (requires ANTHROPIC_API_KEY)
 agent-test:
     cd packages/agent-test && npx tsx src/agent-mock.ts
 
-# Format and check
-lint: fmt check
+# Run the inspector dev server
+inspector:
+    cd packages/inspector && pnpm dev

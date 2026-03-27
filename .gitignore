@@ -34,3 +34,12 @@ Thumbs.db
 
 # Test
 coverage/
+
+# Benchmark artifacts (regenerated on every run)
+packages/suite-b/artifacts/
+
+# Auto-research artifacts
+run.log
+results.tsv
+run-benchmark.sh
+research.toml

@@ -627,30 +627,29 @@ fn remap_value(value: &mut serde_json::Value, id_map: &std::collections::HashMap
     match value {
         serde_json::Value::Object(map) => {
             // Remap "targets" array: UUID strings → u32
-            if let Some(targets) = map.get_mut("targets") {
-                if let Some(arr) = targets.as_array_mut() {
-                    for item in arr.iter_mut() {
-                        if let Some(uuid) = item.as_str() {
-                            if let Some(&internal_id) = id_map.get(uuid) {
-                                *item = serde_json::Value::Number(internal_id.into());
-                            }
-                        }
+            if let Some(targets) = map.get_mut("targets")
+                && let Some(arr) = targets.as_array_mut()
+            {
+                for item in arr.iter_mut() {
+                    if let Some(uuid) = item.as_str()
+                        && let Some(&internal_id) = id_map.get(uuid)
+                    {
+                        *item = serde_json::Value::Number(internal_id.into());
                     }
                 }
             }
             // Remap "entity_id" field in condition checks: UUID string → u32
-            if let Some(entity_id) = map.get_mut("entity_id") {
-                if let Some(uuid) = entity_id.as_str() {
-                    if let Some(&internal_id) = id_map.get(uuid) {
-                        *entity_id = serde_json::Value::Number(internal_id.into());
-                    }
-                }
+            if let Some(entity_id) = map.get_mut("entity_id")
+                && let Some(uuid) = entity_id.as_str()
+                && let Some(&internal_id) = id_map.get(uuid)
+            {
+                *entity_id = serde_json::Value::Number(internal_id.into());
             }
             // Remap "type" → "action_type" (TS DTO uses "type", Rust struct uses "action_type")
-            if map.contains_key("type") && !map.contains_key("action_type") && map.contains_key("targets") {
-                if let Some(type_val) = map.remove("type") {
-                    map.insert("action_type".to_string(), type_val);
-                }
+            if map.contains_key("type") && !map.contains_key("action_type") && map.contains_key("targets")
+                && let Some(type_val) = map.remove("type")
+            {
+                map.insert("action_type".to_string(), type_val);
             }
             // Inject a default target_ref if missing
             if map.contains_key("action_type") && !map.contains_key("target_ref") {
