@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Lazy Rows (Incremental Load More)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    .load-section { margin-top: 1rem; max-width: 700px; display: flex; align-items: center; gap: 1rem; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.5rem 1.25rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .status { font-size: 0.8rem; color: #6b7280; font-family: monospace; }
+    .spinner { display: none; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>Lazy Rows: Incremental Load More</h1>
+  <p class="subtitle">Tests whether new entities are correctly added to the graph without disrupting existing ones.</p>
+
+  <table>
+    <thead>
+      <tr><th>Order ID</th><th>Customer</th><th>Product</th><th>Amount</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="load-section">
+    <button id="load-btn">Load More</button>
+    <div class="spinner" id="spinner"></div>
+    <span class="status" id="status">Showing 3 of 13 rows</span>
+  </div>
+
+  <script>
+    const allRows = [
+      { id: "ORD-001", customer: "Acme Corp",       product: "Widget A",    amount: "$2,400" },
+      { id: "ORD-002", customer: "Globex Inc",       product: "Widget B",    amount: "$1,800" },
+      { id: "ORD-003", customer: "Initech LLC",      product: "Gadget Pro",  amount: "$3,200" },
+      { id: "ORD-004", customer: "Hooli Systems",    product: "Widget A",    amount: "$950" },
+      { id: "ORD-005", customer: "Umbrella Corp",    product: "Gadget Pro",  amount: "$4,100" },
+      { id: "ORD-006", customer: "Stark Industries", product: "Widget C",    amount: "$7,500" },
+      { id: "ORD-007", customer: "Wayne Enterprises",product: "Gadget Lite", amount: "$1,200" },
+      { id: "ORD-008", customer: "Wonka Industries", product: "Widget B",    amount: "$2,900" },
+      { id: "ORD-009", customer: "Cyberdyne Corp",   product: "Widget A",    amount: "$3,800" },
+      { id: "ORD-010", customer: "Massive Dynamic",  product: "Gadget Pro",  amount: "$5,600" },
+      { id: "ORD-011", customer: "Soylent Corp",     product: "Widget C",    amount: "$1,100" },
+      { id: "ORD-012", customer: "Tyrell Corp",      product: "Gadget Lite", amount: "$2,350" },
+      { id: "ORD-013", customer: "Weyland-Yutani",   product: "Widget A",    amount: "$6,200" },
+    ];
+
+    const INITIAL = 3;
+    const BATCH = 5;
+    let loaded = INITIAL;
+
+    const tbody = document.getElementById("tbody");
+    const loadBtn = document.getElementById("load-btn");
+    const spinner = document.getElementById("spinner");
+    const status = document.getElementById("status");
+
+    function renderRow(row) {
+      return `<tr data-order-id="${row.id}">
+        <td>${row.id}</td>
+        <td>${row.customer}</td>
+        <td>${row.product}</td>
+        <td>${row.amount}</td>
+      </tr>`;
+    }
+
+    function renderInitial() {
+      tbody.innerHTML = allRows.slice(0, loaded).map(renderRow).join("");
+      updateStatus();
+    }
+
+    function updateStatus() {
+      status.textContent = `Showing ${loaded} of ${allRows.length} rows`;
+      if (loaded >= allRows.length) {
+        loadBtn.disabled = true;
+        loadBtn.textContent = "All Loaded";
+      }
+    }
+
+    function appendRows(rows) {
+      rows.forEach(row => {
+        tbody.insertAdjacentHTML("beforeend", renderRow(row));
+      });
+    }
+
+    loadBtn.addEventListener("click", () => {
+      if (loaded >= allRows.length) return;
+
+      loadBtn.disabled = true;
+      spinner.classList.add("active");
+      status.textContent = "Loading...";
+
+      setTimeout(() => {
+        const nextBatch = allRows.slice(loaded, loaded + BATCH);
+        appendRows(nextBatch);
+        loaded = Math.min(loaded + BATCH, allRows.length);
+
+        spinner.classList.remove("active");
+        loadBtn.disabled = loaded >= allRows.length;
+        updateStatus();
+      }, 500);
+    });
+
+    renderInitial();
+  </script>
+</body>
+</html>

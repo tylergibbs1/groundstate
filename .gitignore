@@ -1,0 +1,36 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules/
+.pnpm-store/
+
+# napi-rs build artifacts
+packages/napi/*.node
+packages/napi/index.js
+packages/napi/index.d.ts
+crates/gs-napi/*.node
+
+# Embedded repos
+packages/inspector/
+
+# TypeScript build output
+packages/*/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Test
+coverage/

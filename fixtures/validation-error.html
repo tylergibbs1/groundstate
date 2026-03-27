@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Validation Error (Inline Form Errors)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .form-card { background: #fff; border-radius: 8px; padding: 1.5rem; max-width: 480px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .field { margin-bottom: 1.25rem; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    input { width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.15s; }
+    input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    input.error { border-color: #ef4444; background: #fef2f2; }
+    input.error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.1); }
+    .error-text { color: #dc2626; font-size: 0.8rem; margin-top: 0.3rem; display: none; }
+    .error-text.visible { display: block; }
+    button[type="submit"] { background: #2563eb; color: #fff; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-family: inherit; width: 100%; }
+    button[type="submit"]:hover { background: #1d4ed8; }
+    .banner { display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.875rem; margin-bottom: 1rem; }
+    .banner.success { display: block; background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+    .banner.error-summary { display: block; background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <h1>Validation Error: Inline Form Errors</h1>
+  <p class="subtitle">Tests whether the runtime detects validation state (error borders, error text, success banner).</p>
+
+  <div class="form-card">
+    <div class="banner" id="banner"></div>
+    <form id="form" novalidate>
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Jane Doe" autocomplete="off">
+        <div class="error-text" id="name-error">Name is required.</div>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="jane@example.com" autocomplete="off">
+        <div class="error-text" id="email-error">Please enter a valid email address.</div>
+      </div>
+      <div class="field">
+        <label for="amount">Amount ($)</label>
+        <input type="text" id="amount" name="amount" placeholder="100.00" autocomplete="off">
+        <div class="error-text" id="amount-error">Amount must be a positive number.</div>
+      </div>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("form");
+    const banner = document.getElementById("banner");
+
+    const fields = [
+      {
+        input: document.getElementById("name"),
+        errorEl: document.getElementById("name-error"),
+        validate(value) { return value.trim().length > 0; },
+      },
+      {
+        input: document.getElementById("email"),
+        errorEl: document.getElementById("email-error"),
+        validate(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); },
+      },
+      {
+        input: document.getElementById("amount"),
+        errorEl: document.getElementById("amount-error"),
+        validate(value) { const n = Number(value); return !isNaN(n) && n > 0; },
+      },
+    ];
+
+    // Clear error on input
+    fields.forEach(f => {
+      f.input.addEventListener("input", () => {
+        f.input.classList.remove("error");
+        f.errorEl.classList.remove("visible");
+        banner.className = "banner";
+        banner.textContent = "";
+      });
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      let hasError = false;
+
+      fields.forEach(f => {
+        const valid = f.validate(f.input.value);
+        f.input.classList.toggle("error", !valid);
+        f.errorEl.classList.toggle("visible", !valid);
+        if (!valid) hasError = true;
+      });
+
+      if (hasError) {
+        banner.className = "banner error-summary";
+        banner.textContent = "Please fix the errors above before submitting.";
+        return;
+      }
+
+      // Success
+      banner.className = "banner success";
+      banner.textContent = `Submitted successfully: ${fields[0].input.value}, ${fields[1].input.value}, $${fields[2].input.value}`;
+      form.reset();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Modal Interrupt (Confirmation Dialog Blocks Table)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 640px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    .btn-delete { background: #ef4444; color: #fff; border: none; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .btn-delete:hover { background: #dc2626; }
+
+    /* Overlay + Modal */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .overlay.active { display: flex; }
+    .modal { background: #fff; border-radius: 12px; padding: 1.5rem; width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); position: relative; }
+    .modal h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .modal p { font-size: 0.875rem; color: #4b5563; margin-bottom: 1.25rem; }
+    .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+    .modal-actions button { border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+    .btn-confirm { background: #ef4444; color: #fff; }
+    .btn-confirm:hover { background: #dc2626; }
+    .btn-cancel { background: #e5e7eb; color: #374151; }
+    .btn-cancel:hover { background: #d1d5db; }
+    .btn-close { position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #9ca3af; line-height: 1; }
+    .btn-close:hover { color: #374151; }
+
+    .toast { display: none; position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 0.875rem; z-index: 200; }
+    .toast.visible { display: block; }
+  </style>
+</head>
+<body>
+  <h1>Modal Interrupt: Confirmation Dialog Blocks Table</h1>
+  <p class="subtitle">Tests whether the runtime detects modal presence, handles confirm/cancel, and recovers after dismissal.</p>
+
+  <table>
+    <thead>
+      <tr><th>Item</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="overlay" id="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="btn-close" id="modal-close" aria-label="Close">&times;</button>
+      <h2 id="modal-title">Are you sure?</h2>
+      <p id="modal-body">This will permanently delete the item.</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="modal-cancel">Cancel</button>
+        <button class="btn-confirm" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const items = [
+      { id: 1, name: "Invoice #1041", status: "Paid" },
+      { id: 2, name: "Invoice #1042", status: "Pending" },
+      { id: 3, name: "Invoice #1043", status: "Overdue" },
+      { id: 4, name: "Invoice #1044", status: "Paid" },
+    ];
+
+    const tbody = document.getElementById("tbody");
+    const overlay = document.getElementById("overlay");
+    const modalBody = document.getElementById("modal-body");
+    const toast = document.getElementById("toast");
+    let pendingDeleteId = null;
+
+    function renderTable() {
+      tbody.innerHTML = items.map(item => `
+        <tr data-item-id="${item.id}">
+          <td>${item.name}</td>
+          <td>${item.status}</td>
+          <td><button class="btn-delete" data-id="${item.id}">Delete</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2500);
+    }
+
+    function openModal(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      pendingDeleteId = id;
+      modalBody.textContent = `This will permanently delete "${item.name}".`;
+      overlay.classList.add("active");
+    }
+
+    function closeModal() {
+      overlay.classList.remove("active");
+      pendingDeleteId = null;
+    }
+
+    function confirmDelete() {
+      if (pendingDeleteId === null) return;
+      const idx = items.findIndex(i => i.id === pendingDeleteId);
+      const name = items[idx]?.name;
+      if (idx !== -1) items.splice(idx, 1);
+      closeModal();
+      renderTable();
+      showToast(`Deleted ${name}`);
+    }
+
+    renderTable();
+
+    tbody.addEventListener("click", (e) => {
+      const btn = e.target.closest(".btn-delete");
+      if (btn) openModal(Number(btn.dataset.id));
+    });
+
+    document.getElementById("modal-confirm").addEventListener("click", confirmDelete);
+    document.getElementById("modal-cancel").addEventListener("click", closeModal);
+    document.getElementById("modal-close").addEventListener("click", closeModal);
+
+    // Close on overlay click (outside modal)
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal();
+    });
+  </script>
+</body>
+</html>

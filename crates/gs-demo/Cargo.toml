@@ -1,0 +1,22 @@
+[package]
+name = "gs-demo"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "gs-demo"
+path = "src/main.rs"
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+gs-graph = { path = "../gs-graph" }
+gs-transport = { path = "../gs-transport" }
+gs-observe = { path = "../gs-observe" }
+gs-extract = { path = "../gs-extract" }
+gs-validate = { path = "../gs-validate" }
+gs-execute = { path = "../gs-execute" }
+gs-trace = { path = "../gs-trace" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest = { version = "0.12", features = ["json"] }

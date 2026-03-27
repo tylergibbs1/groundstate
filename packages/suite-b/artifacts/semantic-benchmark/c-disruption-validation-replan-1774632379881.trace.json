@@ -1,0 +1,129 @@
+[
+  {
+    "type": "action",
+    "at": "2026-03-27T17:26:12.584Z",
+    "offsetMs": 1838,
+    "data": {
+      "name": "submit-empty-form",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "mutation",
+    "at": "2026-03-27T17:26:13.987Z",
+    "offsetMs": 3241,
+    "data": {
+      "kind": "validation-errors-rendered",
+      "benign": false,
+      "banner": "Please fix the errors above before submitting."
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:26:14.078Z",
+    "offsetMs": 3332,
+    "data": {
+      "label": "validation-errors",
+      "payload": {
+        "banner": "Please fix the errors above before submitting."
+      }
+    }
+  },
+  {
+    "type": "root_cause",
+    "at": "2026-03-27T17:26:14.078Z",
+    "offsetMs": 3332,
+    "data": {
+      "reason": "submission invalidated by required-field validation"
+    }
+  },
+  {
+    "type": "invalidation",
+    "at": "2026-03-27T17:26:14.078Z",
+    "offsetMs": 3332,
+    "data": {
+      "reason": "invalid form state",
+      "falsePositive": false
+    }
+  },
+  {
+    "type": "replan",
+    "at": "2026-03-27T17:26:14.078Z",
+    "offsetMs": 3332,
+    "data": {
+      "reason": "fill required fields before resubmitting"
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:26:14.230Z",
+    "offsetMs": 3484,
+    "data": {
+      "name": "fill-name",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:26:15.083Z",
+    "offsetMs": 4337,
+    "data": {
+      "name": "fill-email",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:26:15.938Z",
+    "offsetMs": 5192,
+    "data": {
+      "name": "fill-amount",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:26:16.992Z",
+    "offsetMs": 6246,
+    "data": {
+      "name": "submit-corrected-form",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "recovery",
+    "at": "2026-03-27T17:26:18.394Z",
+    "offsetMs": 7648,
+    "data": {
+      "success": true,
+      "banner": "Submitted successfully: Jane Doe, jane@example.com, $125.50"
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:26:18.394Z",
+    "offsetMs": 7648,
+    "data": {
+      "label": "after-recovery",
+      "payload": {
+        "banner": "Submitted successfully: Jane Doe, jane@example.com, $125.50"
+      }
+    }
+  },
+  {
+    "type": "postcondition",
+    "at": "2026-03-27T17:26:18.394Z",
+    "offsetMs": 7648,
+    "data": {
+      "description": "form submits after corrective replan",
+      "passed": true,
+      "expected": "Submitted successfully",
+      "actual": "Submitted successfully: Jane Doe, jane@example.com, $125.50"
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "name": "@groundstate/eval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "build": "tsc", "test": "vitest run" },
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.7.0", "vitest": "^3.0.0" }
+}

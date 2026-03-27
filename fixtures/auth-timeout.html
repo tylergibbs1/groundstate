@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Auth Timeout (Session Expiry Replaces Page)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    .countdown { font-family: monospace; font-size: 0.8rem; color: #6b7280; margin-bottom: 1rem; }
+
+    /* Login page styles (injected on timeout) */
+    .auth-expired { max-width: 400px; margin: 4rem auto; text-align: center; }
+    .auth-expired .icon { font-size: 3rem; margin-bottom: 1rem; }
+    .auth-expired h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .auth-expired p { color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .login-form { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: left; }
+    .login-form .field { margin-bottom: 1rem; }
+    .login-form label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.3rem; }
+    .login-form input { width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; font-family: inherit; }
+    .login-form button { background: #2563eb; color: #fff; border: none; padding: 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; width: 100%; }
+    .login-form button:hover { background: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Auth Timeout: Session Expiry Replaces Page</h1>
+    <p class="subtitle">Tests whether the runtime detects auth timeout and complete page replacement after 10 seconds.</p>
+    <div class="countdown" id="countdown">Session expires in 10s</div>
+
+    <table>
+      <thead>
+        <tr><th>Invoice</th><th>Client</th><th>Amount</th><th>Due Date</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>INV-2024-001</td><td>Acme Corp</td><td>$12,500</td><td>2024-04-15</td><td>Paid</td></tr>
+        <tr><td>INV-2024-002</td><td>Globex Inc</td><td>$8,300</td><td>2024-04-20</td><td>Pending</td></tr>
+        <tr><td>INV-2024-003</td><td>Initech LLC</td><td>$22,100</td><td>2024-05-01</td><td>Overdue</td></tr>
+        <tr><td>INV-2024-004</td><td>Hooli Systems</td><td>$5,750</td><td>2024-05-10</td><td>Paid</td></tr>
+        <tr><td>INV-2024-005</td><td>Umbrella Corp</td><td>$18,900</td><td>2024-05-15</td><td>Pending</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const TIMEOUT_SECONDS = 10;
+    let remaining = TIMEOUT_SECONDS;
+    const countdownEl = document.getElementById("countdown");
+
+    const ticker = setInterval(() => {
+      remaining--;
+      if (remaining > 0) {
+        countdownEl.textContent = `Session expires in ${remaining}s`;
+      } else {
+        clearInterval(ticker);
+        expireSession();
+      }
+    }, 1000);
+
+    function expireSession() {
+      const app = document.getElementById("app");
+      // Complete page content replacement — simulates auth redirect
+      app.innerHTML = `
+        <div class="auth-expired">
+          <div class="icon">\u{1F512}</div>
+          <h2>Session Expired</h2>
+          <p>Your session has timed out. Please log in again to continue.</p>
+          <div class="login-form">
+            <form id="login-form">
+              <div class="field">
+                <label for="login-email">Email</label>
+                <input type="email" id="login-email" placeholder="you@example.com" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="Enter password">
+              </div>
+              <button type="submit">Log In</button>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("login-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        // Simulate re-login: just reload the page
+        location.reload();
+      });
+    }
+  </script>
+</body>
+</html>

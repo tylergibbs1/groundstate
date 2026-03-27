@@ -1,0 +1,22 @@
+{
+  "name": "@groundstate/agent-test",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx src/agent.ts",
+    "start:groundstate": "npx tsx src/groundstate-anthropic.ts",
+    "start:groundstate:ready": "pnpm -w build:native && pnpm -w build:core && npx tsx src/groundstate-anthropic.ts",
+    "test:mcp": "npx tsx src/mcp-server.ts"
+  },
+  "dependencies": {
+    "@groundstate/core": "workspace:*",
+    "@anthropic-ai/sdk": "^0.52.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

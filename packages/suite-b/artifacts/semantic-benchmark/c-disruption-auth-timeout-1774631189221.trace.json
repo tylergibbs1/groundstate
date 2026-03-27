@@ -1,0 +1,329 @@
+[
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:06:22.809Z",
+    "offsetMs": 1465,
+    "data": {
+      "label": "before-timeout",
+      "payload": [
+        {
+          "id": "table-0",
+          "_entity": "Table",
+          "_source": "#table-0",
+          "_confidence": 0.9,
+          "headers": [
+            "Invoice",
+            "Client",
+            "Amount",
+            "Due Date",
+            "Status"
+          ],
+          "row_count": 5,
+          "sorted_by": null,
+          "sort_direction": null
+        },
+        {
+          "id": "table-0-row-0",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(1)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-001",
+            "Acme Corp",
+            "$12,500",
+            "2024-04-15",
+            "Paid"
+          ],
+          "Invoice": "INV-2024-001",
+          "Client": "Acme Corp",
+          "Amount": "$12,500",
+          "Due Date": "2024-04-15",
+          "Status": "Paid"
+        },
+        {
+          "id": "table-0-row-1",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(2)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-002",
+            "Globex Inc",
+            "$8,300",
+            "2024-04-20",
+            "Pending"
+          ],
+          "Invoice": "INV-2024-002",
+          "Client": "Globex Inc",
+          "Amount": "$8,300",
+          "Due Date": "2024-04-20",
+          "Status": "Pending"
+        },
+        {
+          "id": "table-0-row-2",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(3)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-003",
+            "Initech LLC",
+            "$22,100",
+            "2024-05-01",
+            "Overdue"
+          ],
+          "Invoice": "INV-2024-003",
+          "Client": "Initech LLC",
+          "Amount": "$22,100",
+          "Due Date": "2024-05-01",
+          "Status": "Overdue"
+        },
+        {
+          "id": "table-0-row-3",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(4)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-004",
+            "Hooli Systems",
+            "$5,750",
+            "2024-05-10",
+            "Paid"
+          ],
+          "Invoice": "INV-2024-004",
+          "Client": "Hooli Systems",
+          "Amount": "$5,750",
+          "Due Date": "2024-05-10",
+          "Status": "Paid"
+        },
+        {
+          "id": "table-0-row-4",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(5)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-005",
+            "Umbrella Corp",
+            "$18,900",
+            "2024-05-15",
+            "Pending"
+          ],
+          "Invoice": "INV-2024-005",
+          "Client": "Umbrella Corp",
+          "Amount": "$18,900",
+          "Due Date": "2024-05-15",
+          "Status": "Pending"
+        }
+      ]
+    }
+  },
+  {
+    "type": "mutation",
+    "at": "2026-03-27T17:06:22.810Z",
+    "offsetMs": 1466,
+    "data": {
+      "kind": "session-expired-page-replacement",
+      "benign": false
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:06:24.282Z",
+    "offsetMs": 2938,
+    "data": {
+      "label": "expired-session",
+      "payload": {
+        "heading": "Session Expired"
+      }
+    }
+  },
+  {
+    "type": "root_cause",
+    "at": "2026-03-27T17:06:24.282Z",
+    "offsetMs": 2938,
+    "data": {
+      "reason": "session expiry replaced the working surface with a login form"
+    }
+  },
+  {
+    "type": "invalidation",
+    "at": "2026-03-27T17:06:24.282Z",
+    "offsetMs": 2938,
+    "data": {
+      "reason": "page surface replaced by auth gate",
+      "falsePositive": false
+    }
+  },
+  {
+    "type": "replan",
+    "at": "2026-03-27T17:06:24.282Z",
+    "offsetMs": 2938,
+    "data": {
+      "reason": "authenticate and return to invoice table"
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:06:24.434Z",
+    "offsetMs": 3090,
+    "data": {
+      "name": "fill-login-email",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:06:25.286Z",
+    "offsetMs": 3942,
+    "data": {
+      "name": "fill-login-password",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:06:26.338Z",
+    "offsetMs": 4994,
+    "data": {
+      "name": "submit-login",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:06:27.740Z",
+    "offsetMs": 6396,
+    "data": {
+      "label": "after-login-recovery",
+      "payload": [
+        {
+          "id": "table-0",
+          "_entity": "Table",
+          "_source": "#table-0",
+          "_confidence": 0.9,
+          "headers": [
+            "Invoice",
+            "Client",
+            "Amount",
+            "Due Date",
+            "Status"
+          ],
+          "row_count": 5,
+          "sorted_by": null,
+          "sort_direction": null
+        },
+        {
+          "id": "table-0-row-0",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(1)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-001",
+            "Acme Corp",
+            "$12,500",
+            "2024-04-15",
+            "Paid"
+          ],
+          "Invoice": "INV-2024-001",
+          "Client": "Acme Corp",
+          "Amount": "$12,500",
+          "Due Date": "2024-04-15",
+          "Status": "Paid"
+        },
+        {
+          "id": "table-0-row-1",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(2)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-002",
+            "Globex Inc",
+            "$8,300",
+            "2024-04-20",
+            "Pending"
+          ],
+          "Invoice": "INV-2024-002",
+          "Client": "Globex Inc",
+          "Amount": "$8,300",
+          "Due Date": "2024-04-20",
+          "Status": "Pending"
+        },
+        {
+          "id": "table-0-row-2",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(3)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-003",
+            "Initech LLC",
+            "$22,100",
+            "2024-05-01",
+            "Overdue"
+          ],
+          "Invoice": "INV-2024-003",
+          "Client": "Initech LLC",
+          "Amount": "$22,100",
+          "Due Date": "2024-05-01",
+          "Status": "Overdue"
+        },
+        {
+          "id": "table-0-row-3",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(4)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-004",
+            "Hooli Systems",
+            "$5,750",
+            "2024-05-10",
+            "Paid"
+          ],
+          "Invoice": "INV-2024-004",
+          "Client": "Hooli Systems",
+          "Amount": "$5,750",
+          "Due Date": "2024-05-10",
+          "Status": "Paid"
+        },
+        {
+          "id": "table-0-row-4",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(5)",
+          "_confidence": 0.85,
+          "_cells": [
+            "INV-2024-005",
+            "Umbrella Corp",
+            "$18,900",
+            "2024-05-15",
+            "Pending"
+          ],
+          "Invoice": "INV-2024-005",
+          "Client": "Umbrella Corp",
+          "Amount": "$18,900",
+          "Due Date": "2024-05-15",
+          "Status": "Pending"
+        }
+      ]
+    }
+  },
+  {
+    "type": "recovery",
+    "at": "2026-03-27T17:06:27.740Z",
+    "offsetMs": 6396,
+    "data": {
+      "success": true,
+      "rows": 5
+    }
+  },
+  {
+    "type": "postcondition",
+    "at": "2026-03-27T17:06:27.740Z",
+    "offsetMs": 6396,
+    "data": {
+      "description": "table returns after re-authentication",
+      "passed": true,
+      "expected": true,
+      "actual": true
+    }
+  }
+]

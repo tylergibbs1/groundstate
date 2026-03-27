@@ -1,0 +1,14 @@
+[package]
+name = "gs-observe"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+gs-transport = { path = "../gs-transport" }
+async-trait.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

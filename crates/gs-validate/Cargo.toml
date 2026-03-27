@@ -1,0 +1,11 @@
+[package]
+name = "gs-validate"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+gs-graph = { path = "../gs-graph" }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

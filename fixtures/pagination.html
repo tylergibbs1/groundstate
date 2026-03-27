@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Pagination (Page Transitions Replace Content)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    .pagination { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; max-width: 700px; }
+    .pagination button { background: #e2e8f0; color: #334155; border: none; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; min-width: 36px; }
+    .pagination button:hover:not(:disabled):not(.active) { background: #cbd5e1; }
+    .pagination button:disabled { opacity: 0.4; cursor: default; }
+    .pagination button.active { background: #2563eb; color: #fff; }
+    .page-info { font-size: 0.8rem; color: #6b7280; margin-left: auto; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Pagination: Full Content Replacement Per Page</h1>
+  <p class="subtitle">Tests entity identity across page transitions &mdash; tbody content is entirely replaced on each page change.</p>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="pagination" id="pagination"></div>
+
+  <script>
+    const allUsers = [
+      { id: 1,  name: "Alice Chen",       email: "alice@example.com",    role: "Admin",     joined: "2023-01-15" },
+      { id: 2,  name: "Bob Martinez",      email: "bob@example.com",     role: "Editor",    joined: "2023-02-20" },
+      { id: 3,  name: "Carol Okafor",      email: "carol@example.com",   role: "Viewer",    joined: "2023-03-10" },
+      { id: 4,  name: "David Park",        email: "david@example.com",   role: "Editor",    joined: "2023-04-05" },
+      { id: 5,  name: "Eva Johansson",     email: "eva@example.com",     role: "Admin",     joined: "2023-05-12" },
+      { id: 6,  name: "Frank Nguyen",      email: "frank@example.com",   role: "Viewer",    joined: "2023-06-18" },
+      { id: 7,  name: "Grace Thompson",    email: "grace@example.com",   role: "Editor",    joined: "2023-07-22" },
+      { id: 8,  name: "Hiro Tanaka",       email: "hiro@example.com",    role: "Viewer",    joined: "2023-08-01" },
+      { id: 9,  name: "Isabel Ruiz",       email: "isabel@example.com",  role: "Admin",     joined: "2023-09-14" },
+      { id: 10, name: "Jake Williams",     email: "jake@example.com",    role: "Editor",    joined: "2023-10-30" },
+      { id: 11, name: "Kira Patel",        email: "kira@example.com",    role: "Viewer",    joined: "2023-11-05" },
+      { id: 12, name: "Liam O'Brien",      email: "liam@example.com",    role: "Editor",    joined: "2023-12-19" },
+      { id: 13, name: "Maya Gupta",        email: "maya@example.com",    role: "Admin",     joined: "2024-01-08" },
+      { id: 14, name: "Noah Fischer",      email: "noah@example.com",    role: "Viewer",    joined: "2024-02-14" },
+      { id: 15, name: "Olivia Svensson",   email: "olivia@example.com",  role: "Editor",    joined: "2024-03-21" },
+    ];
+
+    const PER_PAGE = 5;
+    const TOTAL_PAGES = Math.ceil(allUsers.length / PER_PAGE);
+    let currentPage = 1;
+
+    const tbody = document.getElementById("tbody");
+    const pagination = document.getElementById("pagination");
+
+    function renderPage(page) {
+      currentPage = page;
+      const start = (page - 1) * PER_PAGE;
+      const pageData = allUsers.slice(start, start + PER_PAGE);
+
+      // Full replacement of tbody content
+      tbody.innerHTML = pageData.map(u => `
+        <tr data-user-id="${u.id}">
+          <td>${u.id}</td>
+          <td>${u.name}</td>
+          <td>${u.email}</td>
+          <td>${u.role}</td>
+          <td>${u.joined}</td>
+        </tr>
+      `).join("");
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      let html = `<button id="prev-btn" ${currentPage === 1 ? "disabled" : ""}>Previous</button>`;
+
+      for (let i = 1; i <= TOTAL_PAGES; i++) {
+        html += `<button class="page-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
+      }
+
+      html += `<button id="next-btn" ${currentPage === TOTAL_PAGES ? "disabled" : ""}>Next</button>`;
+      html += `<span class="page-info">Page ${currentPage} of ${TOTAL_PAGES}</span>`;
+
+      pagination.innerHTML = html;
+    }
+
+    pagination.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || btn.disabled) return;
+
+      if (btn.id === "prev-btn") {
+        renderPage(currentPage - 1);
+      } else if (btn.id === "next-btn") {
+        renderPage(currentPage + 1);
+      } else if (btn.dataset.page) {
+        renderPage(Number(btn.dataset.page));
+      }
+    });
+
+    renderPage(1);
+  </script>
+</body>
+</html>

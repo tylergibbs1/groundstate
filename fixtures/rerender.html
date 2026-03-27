@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Rerender (Same Data, New DOM Nodes)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    .controls { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+    button:hover { background: #1d4ed8; }
+    .status { font-size: 0.8rem; color: #6b7280; font-family: monospace; }
+    table { width: 100%; max-width: 640px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <h1>Rerender: Same Data, New DOM Nodes</h1>
+  <p class="subtitle">Tests entity reconciliation &mdash; stable keys should survive innerHTML replacement every 2s.</p>
+
+  <div class="controls">
+    <button id="trigger-btn">Trigger Rerender</button>
+    <span class="status" id="status">Render #0</span>
+  </div>
+
+  <div id="table-container"></div>
+
+  <script>
+    const employees = [
+      { id: "emp-1", name: "Alice Chen",    department: "Engineering", salary: "$142,000" },
+      { id: "emp-2", name: "Bob Martinez",  department: "Design",      salary: "$118,000" },
+      { id: "emp-3", name: "Carol Okafor",  department: "Product",     salary: "$135,000" },
+      { id: "emp-4", name: "David Park",    department: "Engineering", salary: "$155,000" },
+    ];
+
+    let renderCount = 0;
+    const container = document.getElementById("table-container");
+    const status = document.getElementById("status");
+
+    function render() {
+      renderCount++;
+      // Completely replace innerHTML — every DOM node is new
+      container.innerHTML = `
+        <table data-render="${renderCount}">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Salary</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${employees.map(e => `
+              <tr data-employee-id="${e.id}">
+                <td>${e.name}</td>
+                <td>${e.department}</td>
+                <td>${e.salary}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+      status.textContent = `Render #${renderCount} at ${new Date().toLocaleTimeString()}`;
+    }
+
+    render();
+    setInterval(render, 2000);
+    document.getElementById("trigger-btn").addEventListener("click", render);
+  </script>
+</body>
+</html>

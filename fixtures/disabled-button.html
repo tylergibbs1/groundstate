@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Disabled Button Lockout</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #111827; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 760px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    button { border: none; border-radius: 6px; padding: 0.5rem 0.85rem; font-size: 0.85rem; cursor: pointer; }
+    .deploy-btn { background: #2563eb; color: #fff; }
+    .deploy-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    .controls { margin: 1rem 0; display: flex; gap: 0.75rem; align-items: center; }
+    #lock-target { background: #111827; color: #fff; }
+    #status { color: #6b7280; font-size: 0.8rem; font-family: ui-monospace, SFMono-Regular, monospace; }
+    .banner { display: none; margin-top: 1rem; max-width: 760px; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; }
+    .banner.visible { display: block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+  </style>
+</head>
+<body>
+  <h1>Disabled Button Lockout</h1>
+  <p class="subtitle">Tests whether the runtime avoids stale actions when a target action becomes temporarily disabled.</p>
+
+  <table id="deployments">
+    <thead>
+      <tr><th>Service</th><th>Environment</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="controls">
+    <button id="lock-target">Lock Payments Deployment</button>
+    <span id="status">No lock active.</span>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <script>
+    const rows = [
+      { id: "svc-auth", service: "Auth Service", environment: "Production", status: "Ready" },
+      { id: "svc-payments", service: "Payments Service", environment: "Production", status: "Ready" },
+      { id: "svc-search", service: "Search Service", environment: "Staging", status: "Ready" },
+    ];
+
+    const tbody = document.getElementById("tbody");
+    const statusEl = document.getElementById("status");
+    const banner = document.getElementById("banner");
+
+    function render() {
+      tbody.innerHTML = rows.map((row) => `
+        <tr data-row-id="${row.id}">
+          <td>${row.service}</td>
+          <td>${row.environment}</td>
+          <td class="status-cell">${row.status}</td>
+          <td>
+            <button
+              class="deploy-btn"
+              data-row-id="${row.id}"
+              ${row.status === "Locked" || row.status === "Deploying" || row.status === "Deployed" ? "disabled" : ""}
+            >
+              ${row.status === "Deployed" ? "Deployed" : "Deploy"}
+            </button>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    function showBanner(text) {
+      banner.textContent = text;
+      banner.classList.add("visible");
+    }
+
+    function clearBanner() {
+      banner.textContent = "";
+      banner.classList.remove("visible");
+    }
+
+    tbody.addEventListener("click", (event) => {
+      const button = event.target.closest(".deploy-btn");
+      if (!button) return;
+
+      const row = rows.find((entry) => entry.id === button.dataset.rowId);
+      if (!row || button.disabled) return;
+
+      clearBanner();
+      row.status = "Deploying";
+      render();
+      statusEl.textContent = `Deploying ${row.service}...`;
+
+      setTimeout(() => {
+        row.status = "Deployed";
+        render();
+        statusEl.textContent = `${row.service} deployed successfully.`;
+        showBanner(`${row.service} deployed successfully.`);
+      }, 500);
+    });
+
+    document.getElementById("lock-target").addEventListener("click", () => {
+      const row = rows.find((entry) => entry.id === "svc-payments");
+      if (!row) return;
+      clearBanner();
+      row.status = "Locked";
+      render();
+      statusEl.textContent = "Payments Service locked by an upstream policy check.";
+
+      setTimeout(() => {
+        row.status = "Ready";
+        render();
+        statusEl.textContent = "Payments Service lock cleared.";
+      }, 700);
+    });
+
+    render();
+  </script>
+</body>
+</html>

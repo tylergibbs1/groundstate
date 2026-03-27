@@ -1,0 +1,22 @@
+{
+  "name": "@groundstate/suite-b",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npx tsx src/run.ts",
+    "test:verbose": "npx tsx src/run.ts --verbose",
+    "test:semantic": "npx tsx src/run-semantic.ts",
+    "test:semantic:verbose": "npx tsx src/run-semantic.ts --verbose",
+    "test:semantic:watch": "npx tsx src/run-semantic.ts --visible --delay-ms=1400",
+    "test:semantic:open": "npx tsx src/run-semantic.ts && open artifacts/semantic-benchmark/report.html"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

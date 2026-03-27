@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Groundstate Semantic Continuity Report</title>
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --panel: rgba(255,255,255,0.82);
+        --ink: #1c1917;
+        --muted: #6b645d;
+        --line: rgba(28,25,23,0.12);
+        --green: #166534;
+        --red: #991b1b;
+        --amber: #92400e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(20,83,45,0.08), transparent 28%),
+          radial-gradient(circle at top right, rgba(146,64,14,0.08), transparent 24%),
+          linear-gradient(180deg, #f7f4ee 0%, var(--bg) 100%);
+      }
+      .wrap { max-width: 1360px; margin: 0 auto; padding: 32px 24px 80px; }
+      header.hero { margin-bottom: 32px; }
+      .kicker {
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font: 600 12px/1.2 ui-monospace, SFMono-Regular, monospace;
+      }
+      h1 {
+        margin: 10px 0 8px;
+        font-size: clamp(36px, 6vw, 64px);
+        line-height: 0.95;
+        max-width: 10ch;
+      }
+      .lede {
+        max-width: 72ch;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.5;
+      }
+      .bucket { margin-top: 44px; }
+      .bucket h2 { font-size: 28px; margin-bottom: 18px; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+      .card {
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow: 0 18px 48px rgba(28,25,23,0.08);
+      }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 18px 18px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .eyebrow, .fixture {
+        margin: 0;
+        color: var(--muted);
+        font: 500 12px/1.3 ui-monospace, SFMono-Regular, monospace;
+      }
+      .card-header h3 { margin: 8px 0 6px; font-size: 22px; line-height: 1.05; }
+      .status {
+        align-self: start;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font: 700 12px/1 ui-monospace, SFMono-Regular, monospace;
+        text-transform: uppercase;
+      }
+      .status.pass { background: rgba(22,101,52,0.12); color: var(--green); }
+      .status.fail { background: rgba(153,27,27,0.12); color: var(--red); }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        padding: 14px 18px;
+      }
+      .metrics div {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.6);
+      }
+      .metrics span {
+        display: block;
+        color: var(--muted);
+        font: 500 11px/1.3 ui-monospace, SFMono-Regular, monospace;
+        text-transform: uppercase;
+      }
+      .metrics strong { display: block; margin-top: 6px; font-size: 18px; }
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        padding: 0 18px 18px;
+      }
+      .shot {
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.75);
+      }
+      .shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #ddd6ce; }
+      .shot figcaption {
+        padding: 8px 10px;
+        color: var(--muted);
+        font: 500 11px/1.3 ui-monospace, SFMono-Regular, monospace;
+      }
+      .postconditions { padding: 0 18px 16px; display: grid; gap: 8px; }
+      .postcondition {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      .postcondition.pass { background: rgba(22,101,52,0.08); color: var(--green); }
+      .postcondition.fail { background: rgba(153,27,27,0.08); color: var(--red); }
+      details { padding: 0 18px 18px; }
+      details summary { cursor: pointer; color: var(--amber); font: 700 13px/1.3 ui-monospace, SFMono-Regular, monospace; }
+      pre {
+        margin: 12px 0;
+        padding: 12px;
+        overflow: auto;
+        background: #18181b;
+        color: #f4f4f5;
+        border-radius: 14px;
+        font: 12px/1.45 ui-monospace, SFMono-Regular, monospace;
+      }
+      a { color: #92400e; }
+      @media (max-width: 720px) {
+        .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <p class="kicker">Groundstate · semantic continuity</p>
+        <h1>End-to-end browser runs you can inspect visually.</h1>
+        <p class="lede">
+          Each card shows the benchmark task, the mutation being exercised, the continuity metrics, and captured browser frames.
+          This is the view for proving whether Groundstate preserves semantic state under UI churn instead of only finishing once.
+        </p>
+      </header>
+      
+      <section class="bucket">
+        <h2>Bucket A</h2>
+        <div class="cards">
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket A · none</p>
+                <h3>Stable: invoice filter postcondition</h3>
+                <p class="fixture">invoices.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>412</strong></div>
+              <div><span>Runtime</span><strong>1359ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./stable-invoice-filter-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./stable-invoice-filter-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>three unpaid invoices exceed 10k</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;three unpaid invoices exceed 10k&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: 3,
+    &quot;actual&quot;: 3
+  }
+]</pre>
+              <p><a href="./a-stable-invoice-filter-1774636900587.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket A · none</p>
+                <h3>Stable: invoice sort remains correct</h3>
+                <p class="fixture">invoices.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>414</strong></div>
+              <div><span>Runtime</span><strong>1695ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./stable-invoice-sort-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./stable-invoice-sort-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>table sorted by amount ascending</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;table sorted by amount ascending&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: true,
+    &quot;actual&quot;: {
+      &quot;sortedBy&quot;: &quot;Amount&quot;,
+      &quot;amounts&quot;: [
+        3100,
+        5600,
+        8200,
+        15000,
+        42000,
+        97500
+      ]
+    }
+  }
+]</pre>
+              <p><a href="./a-stable-invoice-sort-1774636902283.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket A · none</p>
+                <h3>Stable: valid form submits successfully</h3>
+                <p class="fixture">validation-error.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>18</strong></div>
+              <div><span>Runtime</span><strong>2170ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./stable-valid-form-submit-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./stable-valid-form-submit-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>success banner is shown</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;success banner is shown&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;Submitted successfully&quot;,
+    &quot;actual&quot;: &quot;Submitted successfully: Jane Doe, jane@example.com, $125.50&quot;
+  }
+]</pre>
+              <p><a href="./a-stable-valid-form-submit-1774636904454.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        </div>
+      </section>
+    
+      <section class="bucket">
+        <h2>Bucket B</h2>
+        <div class="cards">
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket B · same_entity_new_dom_identity</p>
+                <h3>Benign churn: semantic row survives rerender</h3>
+                <p class="fixture">rerender.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>590</strong></div>
+              <div><span>Runtime</span><strong>1862ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./benign-rerender-survival-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-rerender-survival-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-rerender-survival-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>Alice Chen row is preserved semantically across rerender</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;Alice Chen row is preserved semantically across rerender&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;$142,000&quot;,
+    &quot;actual&quot;: &quot;$142,000&quot;
+  }
+]</pre>
+              <p><a href="./b-benign-rerender-survival-1774636906316.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket B · row_order_changes</p>
+                <h3>Benign churn: target row survives row reorder</h3>
+                <p class="fixture">invoices.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>826</strong></div>
+              <div><span>Runtime</span><strong>1706ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./benign-row-reorder-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-row-reorder-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-row-reorder-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>Stark Industries row remains addressable after reorder</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;Stark Industries row remains addressable after reorder&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;Unpaid&quot;,
+    &quot;actual&quot;: &quot;Unpaid&quot;
+  }
+]</pre>
+              <p><a href="./b-benign-row-reorder-1774636908022.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket B · lazy_loaded_content_arrives</p>
+                <h3>Benign churn: lazy load appends without invalidating plan</h3>
+                <p class="fixture">lazy-rows.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>0%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>849</strong></div>
+              <div><span>Runtime</span><strong>1879ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./benign-lazy-load-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-lazy-load-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-lazy-load-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition fail">
+                <strong>existing row persists and new row appears after lazy load</strong>
+                <span>fail</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;existing row persists and new row appears after lazy load&quot;,
+    &quot;passed&quot;: false,
+    &quot;expected&quot;: {
+      &quot;existing&quot;: &quot;ORD-002&quot;,
+      &quot;added&quot;: &quot;ORD-010&quot;
+    },
+    &quot;actual&quot;: {
+      &quot;existing&quot;: &quot;ORD-002&quot;,
+      &quot;added&quot;: null
+    }
+  }
+]</pre>
+              <p><a href="./b-benign-lazy-load-1774636909901.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket B · modal_interruption</p>
+                <h3>Benign churn: modal interruption cancels and resumes</h3>
+                <p class="fixture">modal-interrupt.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>0ms</strong></div>
+              <div><span>Tokens</span><strong>914</strong></div>
+              <div><span>Runtime</span><strong>2060ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./benign-modal-cancel-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-modal-cancel-modal-open.png" alt="modal-open" />
+                <figcaption>modal-open</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./benign-modal-cancel-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>target row still present after canceling modal</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;target row still present after canceling modal&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;Invoice #1042&quot;,
+    &quot;actual&quot;: &quot;Invoice #1042&quot;
+  }
+]</pre>
+              <p><a href="./b-benign-modal-cancel-1774636911962.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        </div>
+      </section>
+    
+      <section class="bucket">
+        <h2>Bucket C</h2>
+        <div class="cards">
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket C · validation_banner_appears</p>
+                <h3>Real disruption: validation banner forces replan</h3>
+                <p class="fixture">validation-error.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>37ms</strong></div>
+              <div><span>Tokens</span><strong>33</strong></div>
+              <div><span>Runtime</span><strong>2514ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./disruption-validation-replan-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-validation-replan-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-validation-replan-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>form submits after corrective replan</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;form submits after corrective replan&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;Submitted successfully&quot;,
+    &quot;actual&quot;: &quot;Submitted successfully: Jane Doe, jane@example.com, $125.50&quot;
+  }
+]</pre>
+              <p><a href="./c-disruption-validation-replan-1774636914477.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket C · session_expiry_page_replacement</p>
+                <h3>Real disruption: auth timeout recovers without restart</h3>
+                <p class="fixture">auth-timeout.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>52ms</strong></div>
+              <div><span>Tokens</span><strong>818</strong></div>
+              <div><span>Runtime</span><strong>1997ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./disruption-auth-timeout-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-auth-timeout-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-auth-timeout-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>table returns after re-authentication</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;table returns after re-authentication&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: true,
+    &quot;actual&quot;: true
+  }
+]</pre>
+              <p><a href="./c-disruption-auth-timeout-1774636916474.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        
+          <article class="card">
+            <header class="card-header">
+              <div>
+                <p class="eyebrow">Bucket C · button_becomes_disabled</p>
+                <h3>Real disruption: disabled action is revalidated before execution</h3>
+                <p class="fixture">disabled-button.html</p>
+              </div>
+              <div class="status pass">
+                pass
+              </div>
+            </header>
+            <div class="metrics">
+              <div><span>Plan survival</span><strong>100%</strong></div>
+              <div><span>Stale escape</span><strong>0%</strong></div>
+              <div><span>Recovery</span><strong>100%</strong></div>
+              <div><span>Root cause</span><strong>60ms</strong></div>
+              <div><span>Tokens</span><strong>379</strong></div>
+              <div><span>Runtime</span><strong>2621ms</strong></div>
+            </div>
+            <div class="shots">
+              <figure class="shot">
+                <img src="./disruption-disabled-button-start.png" alt="start" />
+                <figcaption>start</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-disabled-button-after-mutation.png" alt="after-mutation" />
+                <figcaption>after-mutation</figcaption>
+              </figure>
+            
+              <figure class="shot">
+                <img src="./disruption-disabled-button-end.png" alt="end" />
+                <figcaption>end</figcaption>
+              </figure>
+            </div>
+            <section class="postconditions">
+              <div class="postcondition pass">
+                <strong>payments service deploys after lock clears</strong>
+                <span>pass</span>
+              </div>
+            </section>
+            <details>
+              <summary>Trace</summary>
+              <pre>[
+  {
+    &quot;description&quot;: &quot;payments service deploys after lock clears&quot;,
+    &quot;passed&quot;: true,
+    &quot;expected&quot;: &quot;Payments Service deployed successfully.&quot;,
+    &quot;actual&quot;: &quot;Payments Service deployed successfully.&quot;
+  }
+]</pre>
+              <p><a href="./c-disruption-disabled-button-1774636919095.trace.json">Open raw trace JSON</a></p>
+            </details>
+          </article>
+        </div>
+      </section>
+    
+    </div>
+  </body>
+  </html>

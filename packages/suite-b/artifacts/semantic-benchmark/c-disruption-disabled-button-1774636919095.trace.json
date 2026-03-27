@@ -1,0 +1,204 @@
+[
+  {
+    "type": "observation",
+    "at": "2026-03-27T18:41:57.758Z",
+    "offsetMs": 67,
+    "data": {
+      "label": "before-lock",
+      "payload": [
+        {
+          "id": "deployments",
+          "_entity": "Table",
+          "_source": "#deployments",
+          "_confidence": 0.9,
+          "headers": [
+            "Service",
+            "Environment",
+            "Status",
+            "Action"
+          ],
+          "row_count": 3,
+          "sorted_by": null,
+          "sort_direction": null
+        },
+        {
+          "id": "deployments-row-svc-auth",
+          "_entity": "TableRow",
+          "_source": "#deployments tbody tr:nth-child(1)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Auth Service",
+            "Production",
+            "Ready",
+            "Deploy"
+          ],
+          "Service": "Auth Service",
+          "Environment": "Production",
+          "Status": "Ready",
+          "Action": "Deploy"
+        },
+        {
+          "id": "deployments-row-svc-payments",
+          "_entity": "TableRow",
+          "_source": "#deployments tbody tr:nth-child(2)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Payments Service",
+            "Production",
+            "Ready",
+            "Deploy"
+          ],
+          "Service": "Payments Service",
+          "Environment": "Production",
+          "Status": "Ready",
+          "Action": "Deploy"
+        },
+        {
+          "id": "deployments-row-svc-search",
+          "_entity": "TableRow",
+          "_source": "#deployments tbody tr:nth-child(3)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Search Service",
+            "Staging",
+            "Ready",
+            "Deploy"
+          ],
+          "Service": "Search Service",
+          "Environment": "Staging",
+          "Status": "Ready",
+          "Action": "Deploy"
+        },
+        {
+          "id": "btn-0",
+          "_entity": "Button",
+          "_source": "deploy-btn",
+          "_confidence": 0.8,
+          "label": "Deploy",
+          "disabled": false
+        },
+        {
+          "id": "btn-1",
+          "_entity": "Button",
+          "_source": "deploy-btn",
+          "_confidence": 0.8,
+          "label": "Deploy",
+          "disabled": false
+        },
+        {
+          "id": "btn-2",
+          "_entity": "Button",
+          "_source": "deploy-btn",
+          "_confidence": 0.8,
+          "label": "Deploy",
+          "disabled": false
+        },
+        {
+          "id": "btn-3",
+          "_entity": "Button",
+          "_source": "button",
+          "_confidence": 0.8,
+          "label": "Lock Payments Deployment",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "mutation",
+    "at": "2026-03-27T18:41:58.109Z",
+    "offsetMs": 418,
+    "data": {
+      "kind": "target-button-disabled",
+      "benign": false
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T18:41:58.169Z",
+    "offsetMs": 478,
+    "data": {
+      "label": "locked-button",
+      "payload": {
+        "disabled": true
+      }
+    }
+  },
+  {
+    "type": "root_cause",
+    "at": "2026-03-27T18:41:58.169Z",
+    "offsetMs": 478,
+    "data": {
+      "reason": "payments deployment temporarily disabled by policy lock"
+    }
+  },
+  {
+    "type": "invalidation",
+    "at": "2026-03-27T18:41:58.169Z",
+    "offsetMs": 478,
+    "data": {
+      "reason": "action target disabled",
+      "falsePositive": false
+    }
+  },
+  {
+    "type": "replan",
+    "at": "2026-03-27T18:41:58.169Z",
+    "offsetMs": 478,
+    "data": {
+      "reason": "wait for deploy action to become valid before executing"
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T18:41:58.169Z",
+    "offsetMs": 478,
+    "data": {
+      "name": "deploy-while-disabled",
+      "success": true,
+      "stale": false,
+      "skippedExecution": true
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T18:41:58.827Z",
+    "offsetMs": 1136,
+    "data": {
+      "name": "deploy-payments-service",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "recovery",
+    "at": "2026-03-27T18:41:59.034Z",
+    "offsetMs": 1343,
+    "data": {
+      "success": true,
+      "banner": "Payments Service deployed successfully."
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T18:41:59.034Z",
+    "offsetMs": 1343,
+    "data": {
+      "label": "after-deploy",
+      "payload": {
+        "banner": "Payments Service deployed successfully."
+      }
+    }
+  },
+  {
+    "type": "postcondition",
+    "at": "2026-03-27T18:41:59.034Z",
+    "offsetMs": 1343,
+    "data": {
+      "description": "payments service deploys after lock clears",
+      "passed": true,
+      "expected": "Payments Service deployed successfully.",
+      "actual": "Payments Service deployed successfully."
+    }
+  }
+]

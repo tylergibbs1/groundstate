@@ -1,0 +1,11 @@
+[package]
+name = "gs-graph"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+petgraph.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

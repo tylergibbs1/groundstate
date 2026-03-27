@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Search Results</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7fb; color: #172033; }
+    header, footer { background: white; border-bottom: 1px solid #dde3ee; padding: 16px 24px; }
+    footer { border-top: 1px solid #dde3ee; border-bottom: 0; margin-top: 32px; }
+    nav, .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    main { max-width: 920px; margin: 0 auto; padding: 24px; }
+    .search-bar { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-bottom: 20px; }
+    .search-bar input { padding: 12px 14px; border: 1px solid #c8d2e1; border-radius: 12px; font-size: 16px; }
+    .search-bar button { padding: 12px 18px; border: 0; border-radius: 12px; background: #2547d0; color: white; font-weight: 600; }
+    .results { display: grid; gap: 14px; }
+    .result-card { background: white; border: 1px solid #dde3ee; border-radius: 18px; padding: 18px; box-shadow: 0 6px 20px rgba(18, 33, 61, 0.06); }
+    .result-card h2 { margin: 0 0 8px; font-size: 22px; }
+    .result-card p { margin: 8px 0; line-height: 1.5; color: #46526c; }
+    .meta { font-size: 14px; color: #61708f; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pager { display: flex; gap: 12px; margin-top: 24px; }
+    a { color: #15349f; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <nav aria-label="Primary">
+      <a href="/about">About</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="search-bar" role="search">
+      <input type="search" placeholder="Search guides and references" aria-label="Search query" value="browser runtime" />
+      <button type="submit">Search</button>
+    </form>
+
+    <section class="results" aria-label="Search results">
+      <article class="result-card">
+        <h2><a href="https://example.com/guides/reactive-browser-runtime">Reactive browser runtime architecture for resilient agents</a></h2>
+        <div class="meta">
+          <a href="https://example.com">example.com</a>
+          <span>12 min read</span>
+        </div>
+        <p>Learn how persistent world models, postconditions, and invalidation improve browser-agent reliability across dynamic interfaces.</p>
+      </article>
+
+      <article class="result-card">
+        <h2><a href="https://docs.example.dev/semantic-actions-for-web-agents">Semantic actions for web agents without brittle selectors</a></h2>
+        <div class="meta">
+          <a href="https://docs.example.dev">docs.example.dev</a>
+          <span>Reference</span>
+        </div>
+        <p>This guide explains how to derive meaningful click, fill, and navigate actions from semantic entities instead of raw DOM snapshots.</p>
+      </article>
+
+      <article class="result-card">
+        <h2><a href="https://research.example.org/planning-ui-churn">Planning through UI churn with stable browser entities</a></h2>
+        <div class="meta">
+          <a href="https://research.example.org">research.example.org</a>
+          <span>Research note</span>
+        </div>
+        <p>An overview of stateful reconciliation strategies for agents working across rerenders, interruptions, and dynamic page updates.</p>
+      </article>
+    </section>
+
+    <div class="pager" role="navigation" aria-label="Pagination">
+      <a href="?page=1">1</a>
+      <a href="?page=2">2</a>
+      <a href="?page=3">3</a>
+      <a href="?page=next">Next</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="mailto:support@example.com">Email support</a>
+    </div>
+  </footer>
+</body>
+</html>

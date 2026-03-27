@@ -1,0 +1,19 @@
+[package]
+name = "gs-execute"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+gs-graph = { path = "../gs-graph" }
+gs-transport = { path = "../gs-transport" }
+gs-observe = { path = "../gs-observe" }
+gs-extract = { path = "../gs-extract" }
+gs-validate = { path = "../gs-validate" }
+gs-trace = { path = "../gs-trace" }
+async-trait.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

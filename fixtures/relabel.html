@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Relabel (Button Labels Change After Interaction)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 720px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    button { border: none; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .btn-download { background: #2563eb; color: #fff; min-width: 110px; }
+    .btn-download:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-download:disabled { opacity: 0.7; cursor: default; }
+    .btn-download.done { background: #16a34a; }
+    .btn-sort { background: #e2e8f0; color: #334155; }
+    .btn-sort:hover { background: #cbd5e1; }
+    .btn-sort.sorted { background: #dbeafe; color: #1e40af; }
+    .th-sortable { display: flex; align-items: center; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <h1>Relabel: Button Labels Change After Interaction</h1>
+  <p class="subtitle">Tests whether actions remain valid after button text transitions (Download &rarr; Downloading... &rarr; Downloaded).</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>
+          <span class="th-sortable">
+            Name
+            <button class="btn-sort" data-sort="name">Sort</button>
+          </span>
+        </th>
+        <th>
+          <span class="th-sortable">
+            Revenue
+            <button class="btn-sort" data-sort="revenue">Sort</button>
+          </span>
+        </th>
+        <th>Report</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <script>
+    const data = [
+      { name: "Q1 North Region",  revenue: "$1,240,000" },
+      { name: "Q1 South Region",  revenue: "$980,500" },
+      { name: "Q2 North Region",  revenue: "$1,510,000" },
+      { name: "Q2 South Region",  revenue: "$1,120,300" },
+    ];
+
+    const tbody = document.getElementById("tbody");
+
+    function renderRows() {
+      tbody.innerHTML = data.map((row, i) => `
+        <tr>
+          <td>${row.name}</td>
+          <td>${row.revenue}</td>
+          <td><button class="btn-download" data-row="${i}">Download</button></td>
+        </tr>
+      `).join("");
+    }
+
+    renderRows();
+
+    // Download button: transitions through three label states
+    tbody.addEventListener("click", (e) => {
+      const btn = e.target.closest(".btn-download");
+      if (!btn || btn.disabled) return;
+
+      btn.disabled = true;
+      btn.textContent = "Downloading...";
+
+      setTimeout(() => {
+        btn.textContent = "Downloaded \u2713";
+        btn.classList.add("done");
+      }, 1500);
+    });
+
+    // Sort buttons: label changes to "Sorted ▲" on click
+    document.querySelectorAll(".btn-sort").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const field = btn.dataset.sort;
+        // Reset other sort buttons
+        document.querySelectorAll(".btn-sort").forEach(b => {
+          b.textContent = "Sort";
+          b.classList.remove("sorted");
+        });
+
+        if (field === "name") {
+          data.sort((a, b) => a.name.localeCompare(b.name));
+        } else {
+          data.sort((a, b) => {
+            const parse = s => Number(s.replace(/[$,]/g, ""));
+            return parse(b.revenue) - parse(a.revenue);
+          });
+        }
+
+        btn.textContent = "Sorted \u25B2";
+        btn.classList.add("sorted");
+        renderRows();
+      });
+    });
+  </script>
+</body>
+</html>

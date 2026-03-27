@@ -1,0 +1,64 @@
+[
+  {
+    "type": "action",
+    "at": "2026-03-27T17:05:37.930Z",
+    "offsetMs": 1611,
+    "data": {
+      "name": "fill-name",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:05:38.786Z",
+    "offsetMs": 2467,
+    "data": {
+      "name": "fill-email",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:05:39.640Z",
+    "offsetMs": 3321,
+    "data": {
+      "name": "fill-amount",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:05:40.693Z",
+    "offsetMs": 4374,
+    "data": {
+      "name": "submit-form",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:05:42.096Z",
+    "offsetMs": 5777,
+    "data": {
+      "label": "success-banner",
+      "payload": {
+        "banner": "Submitted successfully: Jane Doe, jane@example.com, $125.50"
+      }
+    }
+  },
+  {
+    "type": "postcondition",
+    "at": "2026-03-27T17:05:42.096Z",
+    "offsetMs": 5777,
+    "data": {
+      "description": "success banner is shown",
+      "passed": true,
+      "expected": "Submitted successfully",
+      "actual": "Submitted successfully: Jane Doe, jane@example.com, $125.50"
+    }
+  }
+]

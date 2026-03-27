@@ -1,0 +1,10 @@
+[package]
+name = "gs-trace"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true

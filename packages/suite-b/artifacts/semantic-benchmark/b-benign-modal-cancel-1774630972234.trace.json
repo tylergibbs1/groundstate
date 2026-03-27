@@ -1,0 +1,324 @@
+[
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:02:51.454Z",
+    "offsetMs": 41,
+    "data": {
+      "label": "before-modal",
+      "payload": [
+        {
+          "id": "table-0",
+          "_entity": "Table",
+          "_source": "#table-0",
+          "_confidence": 0.9,
+          "headers": [
+            "Item",
+            "Status",
+            "Action"
+          ],
+          "row_count": 4,
+          "sorted_by": null,
+          "sort_direction": null
+        },
+        {
+          "id": "table-0-row-1",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(1)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1041",
+            "Paid",
+            "Delete"
+          ],
+          "Item": "Invoice #1041",
+          "Status": "Paid",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-2",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(2)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1042",
+            "Pending",
+            "Delete"
+          ],
+          "Item": "Invoice #1042",
+          "Status": "Pending",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-3",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(3)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1043",
+            "Overdue",
+            "Delete"
+          ],
+          "Item": "Invoice #1043",
+          "Status": "Overdue",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-4",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(4)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1044",
+            "Paid",
+            "Delete"
+          ],
+          "Item": "Invoice #1044",
+          "Status": "Paid",
+          "Action": "Delete"
+        },
+        {
+          "id": "btn-0",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-1",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-2",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-3",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-4",
+          "_entity": "Button",
+          "_source": "btn-close",
+          "_confidence": 0.8,
+          "label": "×",
+          "disabled": false
+        },
+        {
+          "id": "btn-5",
+          "_entity": "Button",
+          "_source": "btn-cancel",
+          "_confidence": 0.8,
+          "label": "Cancel",
+          "disabled": false
+        },
+        {
+          "id": "btn-6",
+          "_entity": "Button",
+          "_source": "btn-confirm",
+          "_confidence": 0.8,
+          "label": "Confirm",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "mutation",
+    "at": "2026-03-27T17:02:51.806Z",
+    "offsetMs": 393,
+    "data": {
+      "kind": "confirmation-modal-opens",
+      "benign": true
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:02:51.845Z",
+    "offsetMs": 432,
+    "data": {
+      "label": "modal-state",
+      "payload": {
+        "modalText": "×\n      Are you sure?\n      This will permanently delete \"Invoice #1042\".\n      \n        Cancel\n        Confirm"
+      }
+    }
+  },
+  {
+    "type": "action",
+    "at": "2026-03-27T17:02:52.196Z",
+    "offsetMs": 783,
+    "data": {
+      "name": "cancel-modal",
+      "success": true,
+      "stale": false
+    }
+  },
+  {
+    "type": "observation",
+    "at": "2026-03-27T17:02:52.198Z",
+    "offsetMs": 785,
+    "data": {
+      "label": "after-modal-cancel",
+      "payload": [
+        {
+          "id": "table-0",
+          "_entity": "Table",
+          "_source": "#table-0",
+          "_confidence": 0.9,
+          "headers": [
+            "Item",
+            "Status",
+            "Action"
+          ],
+          "row_count": 4,
+          "sorted_by": null,
+          "sort_direction": null
+        },
+        {
+          "id": "table-0-row-1",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(1)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1041",
+            "Paid",
+            "Delete"
+          ],
+          "Item": "Invoice #1041",
+          "Status": "Paid",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-2",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(2)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1042",
+            "Pending",
+            "Delete"
+          ],
+          "Item": "Invoice #1042",
+          "Status": "Pending",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-3",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(3)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1043",
+            "Overdue",
+            "Delete"
+          ],
+          "Item": "Invoice #1043",
+          "Status": "Overdue",
+          "Action": "Delete"
+        },
+        {
+          "id": "table-0-row-4",
+          "_entity": "TableRow",
+          "_source": "#table-0 tbody tr:nth-child(4)",
+          "_confidence": 0.85,
+          "_cells": [
+            "Invoice #1044",
+            "Paid",
+            "Delete"
+          ],
+          "Item": "Invoice #1044",
+          "Status": "Paid",
+          "Action": "Delete"
+        },
+        {
+          "id": "btn-0",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-1",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-2",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-3",
+          "_entity": "Button",
+          "_source": "btn-delete",
+          "_confidence": 0.8,
+          "label": "Delete",
+          "disabled": false
+        },
+        {
+          "id": "btn-4",
+          "_entity": "Button",
+          "_source": "btn-close",
+          "_confidence": 0.8,
+          "label": "×",
+          "disabled": false
+        },
+        {
+          "id": "btn-5",
+          "_entity": "Button",
+          "_source": "btn-cancel",
+          "_confidence": 0.8,
+          "label": "Cancel",
+          "disabled": false
+        },
+        {
+          "id": "btn-6",
+          "_entity": "Button",
+          "_source": "btn-confirm",
+          "_confidence": 0.8,
+          "label": "Confirm",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "type": "recovery",
+    "at": "2026-03-27T17:02:52.198Z",
+    "offsetMs": 785,
+    "data": {
+      "success": true,
+      "mode": "dismiss_modal_without_restart"
+    }
+  },
+  {
+    "type": "postcondition",
+    "at": "2026-03-27T17:02:52.198Z",
+    "offsetMs": 785,
+    "data": {
+      "description": "target row still present after canceling modal",
+      "passed": true,
+      "expected": "Invoice #1042",
+      "actual": "Invoice #1042"
+    }
+  }
+]

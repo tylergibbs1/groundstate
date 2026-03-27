@@ -1,0 +1,14 @@
+[package]
+name = "gs-extract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gs-types = { path = "../gs-types" }
+gs-graph = { path = "../gs-graph" }
+gs-observe = { path = "../gs-observe" }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
