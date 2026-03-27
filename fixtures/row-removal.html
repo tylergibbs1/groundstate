@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Row Removal (Target Disappears)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    button { border: none; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .btn-remove { background: #ef4444; color: #fff; }
+    .btn-remove:hover { background: #dc2626; }
+    #banner { margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; max-width: 700px; display: none; }
+    #banner.visible { display: block; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; }
+    #undo-btn { background: #2563eb; color: #fff; margin-top: 0.5rem; display: none; }
+    #undo-btn.visible { display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>Row Removal: Target Row Disappears After Observation</h1>
+  <p class="subtitle">Tests whether the system detects a stale action target and replans after a row is deleted.</p>
+
+  <table id="tasks">
+    <thead>
+      <tr><th>Task</th><th>Assignee</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div id="banner"></div>
+  <button id="undo-btn">Undo Removal</button>
+
+  <script>
+    let tasks = [
+      { id: "t1", task: "Design review",  assignee: "Alice", status: "Done" },
+      { id: "t2", task: "API migration",  assignee: "Bob",   status: "In Progress" },
+      { id: "t3", task: "Write tests",    assignee: "Carol", status: "Blocked" },
+      { id: "t4", task: "Deploy staging", assignee: "David", status: "Todo" },
+    ];
+    let removed = null;
+
+    function render() {
+      document.getElementById("tbody").innerHTML = tasks.map(t =>
+        `<tr data-row-id="${t.id}">
+          <td>${t.task}</td>
+          <td>${t.assignee}</td>
+          <td>${t.status}</td>
+          <td><button class="btn-remove" data-id="${t.id}">Remove</button></td>
+        </tr>`
+      ).join("");
+    }
+
+    render();
+
+    document.getElementById("tbody").addEventListener("click", (e) => {
+      const btn = e.target.closest(".btn-remove");
+      if (!btn) return;
+      const id = btn.dataset.id;
+      removed = tasks.find(t => t.id === id);
+      tasks = tasks.filter(t => t.id !== id);
+      render();
+      const banner = document.getElementById("banner");
+      banner.textContent = `Removed: ${removed.task}`;
+      banner.classList.add("visible");
+      document.getElementById("undo-btn").classList.add("visible");
+    });
+
+    document.getElementById("undo-btn").addEventListener("click", () => {
+      if (!removed) return;
+      tasks.push(removed);
+      tasks.sort((a, b) => a.id.localeCompare(b.id));
+      removed = null;
+      render();
+      document.getElementById("banner").classList.remove("visible");
+      document.getElementById("banner").textContent = "";
+      document.getElementById("undo-btn").classList.remove("visible");
+    });
+  </script>
+</body>
+</html>

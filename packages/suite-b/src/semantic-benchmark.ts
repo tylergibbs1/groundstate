@@ -1080,6 +1080,50 @@ const CASES: BenchmarkCase[] = [
       );
     },
   },
+  {
+    name: "Real disruption: removed row detected as stale target, recovered via undo",
+    slug: "disruption-row-removal-recovery",
+    bucket: "C",
+    mutationType: "target_row_removed",
+    fixture: "row-removal.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-removal", before);
+      const target = firstRowByField(rowsFrom(before), "Task", "Write tests");
+      expect(target, "Write tests row missing");
+
+      // Remove the target row
+      await cdp.click('.btn-remove[data-id="t3"]');
+      ctx.mutate("target-row-removed", false);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "disruption-row-removal-recovery", "after-mutation");
+
+      const afterRemoval = await cdp.extractEntities();
+      ctx.observe("after-removal", afterRemoval);
+      const gone = !firstRowByField(rowsFrom(afterRemoval), "Task", "Write tests");
+
+      ctx.rootCause("target row was removed from the table");
+      ctx.invalidate("action target no longer exists");
+      ctx.replan("undo removal to restore target row");
+
+      // Recovery: click undo
+      await cdp.click("#undo-btn");
+      ctx.action("undo-removal", { success: true });
+      await ctx.pause();
+
+      const afterUndo = await cdp.extractEntities();
+      ctx.observe("after-undo", afterUndo);
+      const restored = Boolean(firstRowByField(rowsFrom(afterUndo), "Task", "Write tests"));
+      ctx.recovery(restored, { rowRestored: restored });
+
+      ctx.postcondition(
+        "target row restored after undo recovery",
+        gone && restored,
+        { removed: true, restored: true },
+        { removed: gone, restored },
+      );
+    },
+  },
 ];
 
 export async function runSemanticBenchmark(
