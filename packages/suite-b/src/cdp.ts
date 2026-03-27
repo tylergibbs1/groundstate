@@ -333,6 +333,20 @@ export class CdpClient {
           }
           return {};
         };
+        // Extract ARIA state attributes (OS-ATLAS inspired — a11y tree carries rich semantic state)
+        const ariaStates = (el) => {
+          const states = {};
+          const role = el.getAttribute('role');
+          if (role) states.role = role;
+          for (const attr of ['aria-expanded', 'aria-selected', 'aria-checked', 'aria-pressed', 'aria-hidden', 'aria-current', 'aria-controls', 'aria-haspopup']) {
+            const val = el.getAttribute(attr);
+            if (val !== null) {
+              const key = 'aria_' + attr.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+              states[key] = val === 'true' ? true : val === 'false' ? false : val;
+            }
+          }
+          return states;
+        };
         document.querySelectorAll('button:not(th button)').forEach((btn, bi) => {
           entities.push(entity(
             btn.id || ('btn-' + bi),
@@ -342,6 +356,7 @@ export class CdpClient {
             {
               label: normalize(btn.textContent || btn.value || btn.getAttribute('aria-label')),
               disabled: isEffectivelyDisabled(btn),
+              ...ariaStates(btn),
               ...rowContext(btn),
             }
           ));

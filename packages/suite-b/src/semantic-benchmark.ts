@@ -1515,6 +1515,88 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: aria-expanded state tracked through accordion toggle",
+    slug: "benign-aria-expanded-toggle",
+    bucket: "B",
+    mutationType: "aria_expanded_state_change",
+    fixture: "aria-states.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-toggle", before);
+
+      // Find the accordion trigger buttons — they should have aria_expanded property
+      const triggers = before.filter(
+        (e) => e._entity === "Button" && e.label?.includes("Groundstate"),
+      );
+      expect(triggers.length > 0, "accordion trigger not found");
+      const triggerBefore = triggers[0]!;
+      expect(
+        triggerBefore.aria_expanded === false || triggerBefore.aria_expanded === "false",
+        `Expected aria_expanded=false before toggle, got ${triggerBefore.aria_expanded}`,
+      );
+
+      // Toggle the accordion open
+      await cdp.click("#acc-1");
+      ctx.mutate("accordion-expanded", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-aria-expanded-toggle", "after-toggle");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-toggle", after);
+      const triggerAfter = after.find(
+        (e) => e._entity === "Button" && e.label?.includes("Groundstate"),
+      );
+      const expanded = triggerAfter?.aria_expanded === true || triggerAfter?.aria_expanded === "true";
+      if (expanded) ctx.planSurvived();
+
+      ctx.postcondition(
+        "accordion trigger reflects aria-expanded=true after toggle",
+        expanded,
+        true,
+        triggerAfter?.aria_expanded ?? null,
+      );
+
+      expect(
+        expanded,
+        `aria-expanded not detected after toggle (got ${triggerAfter?.aria_expanded})`,
+      );
+    },
+  },
+  {
+    name: "Stable: tab buttons expose aria-selected state",
+    slug: "stable-aria-selected-tabs",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "aria-states.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("tabs", entities);
+
+      const tabs = entities.filter(
+        (e) => e._entity === "Button" && (e.role === "tab" || e.aria_role === "tab"),
+      );
+
+      // Should find 3 tab buttons with aria-selected state
+      const selectedTabs = tabs.filter((t) => t.aria_selected === true || t.aria_selected === "true");
+
+      ctx.postcondition(
+        "3 tab buttons found with aria-selected state, exactly 1 selected",
+        tabs.length === 3 && selectedTabs.length === 1,
+        { tabCount: 3, selectedCount: 1 },
+        { tabCount: tabs.length, selectedCount: selectedTabs.length },
+      );
+
+      expect(
+        tabs.length === 3,
+        `Expected 3 tab buttons with role=tab, got ${tabs.length}`,
+      );
+      expect(
+        selectedTabs.length === 1,
+        `Expected exactly 1 selected tab, got ${selectedTabs.length}`,
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",
