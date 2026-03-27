@@ -154,7 +154,9 @@ pub async fn execute_action(
     };
 
     // 5. Re-extract and update graph
-    let entity_ids = state.pipeline.extract_and_upsert(&observation, &mut state.graph);
+    let entity_ids = state
+        .pipeline
+        .extract_and_upsert(&observation, &mut state.graph);
     state.tracer.record_observation(
         &observation.url,
         entity_ids.len(),

@@ -5,7 +5,11 @@ mod tests {
 
     use crate::StateGraph;
 
-    fn make_entity(kind: EntityKind, fingerprint: &str, props: serde_json::Value) -> SemanticEntity {
+    fn make_entity(
+        kind: EntityKind,
+        fingerprint: &str,
+        props: serde_json::Value,
+    ) -> SemanticEntity {
         SemanticEntity::new(
             EntityId(0),
             StableKey::new(kind.clone(), fingerprint),
@@ -73,7 +77,11 @@ mod tests {
 
         // Simulate t1 disappearing from the DOM
         graph.remove(id_a);
-        assert_eq!(graph.entity_count(), 1, "removed entity excluded from live count");
+        assert_eq!(
+            graph.entity_count(),
+            1,
+            "removed entity excluded from live count"
+        );
         assert_eq!(graph.get(id_a).unwrap().status, EntityStatus::Removed);
 
         graph.gc();
@@ -111,7 +119,10 @@ mod tests {
         }
 
         // Record initial versions
-        let initial_versions: Vec<u64> = ids.iter().map(|id| graph.get(*id).unwrap().version).collect();
+        let initial_versions: Vec<u64> = ids
+            .iter()
+            .map(|id| graph.get(*id).unwrap().version)
+            .collect();
 
         // Re-upsert all 100, but only change 5 (indices 10, 20, 30, 40, 50)
         let changed_indices: Vec<usize> = vec![10, 20, 30, 40, 50];
@@ -165,7 +176,11 @@ mod tests {
     fn parent_child_relationships_survive_entity_updates() {
         let mut graph = StateGraph::new();
         let parent_id = graph.upsert(make_entity(EntityKind::Table, "table", json!({"rows": 2})));
-        let child_id = graph.upsert(make_entity(EntityKind::TableRow, "row-0", json!({"val": "a"})));
+        let child_id = graph.upsert(make_entity(
+            EntityKind::TableRow,
+            "row-0",
+            json!({"val": "a"}),
+        ));
 
         graph.add_relation(child_id, parent_id, Relation::ChildOf);
         assert_eq!(graph.children(parent_id).len(), 1);
@@ -179,7 +194,11 @@ mod tests {
         );
 
         // Update the child entity
-        graph.upsert(make_entity(EntityKind::TableRow, "row-0", json!({"val": "b"})));
+        graph.upsert(make_entity(
+            EntityKind::TableRow,
+            "row-0",
+            json!({"val": "b"}),
+        ));
         assert_eq!(
             graph.children(parent_id).len(),
             1,

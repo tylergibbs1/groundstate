@@ -1,13 +1,13 @@
 #[cfg(test)]
-mod reconciliation_tests;
-#[cfg(test)]
 mod invalidation_tests;
+#[cfg(test)]
+mod reconciliation_tests;
 
 use std::collections::HashMap;
 
 use gs_types::{EntityId, EntityKind, EntityStatus, Relation, SemanticEntity, StableKey};
-use petgraph::stable_graph::StableGraph;
 use petgraph::Direction;
+use petgraph::stable_graph::StableGraph;
 
 /// The authoritative state graph for a browser session.
 ///
@@ -99,9 +99,7 @@ impl StateGraph {
 
     /// Look up an entity by its stable key.
     pub fn get_by_key(&self, key: &StableKey) -> Option<&SemanticEntity> {
-        self.stable_index
-            .get(key)
-            .and_then(|&id| self.get(id))
+        self.stable_index.get(key).and_then(|&id| self.get(id))
     }
 
     /// Query entities by kind, with an optional property filter.
@@ -228,7 +226,11 @@ mod tests {
     use gs_types::SourceRef;
     use serde_json::json;
 
-    fn make_entity(kind: EntityKind, fingerprint: &str, props: serde_json::Value) -> SemanticEntity {
+    fn make_entity(
+        kind: EntityKind,
+        fingerprint: &str,
+        props: serde_json::Value,
+    ) -> SemanticEntity {
         SemanticEntity::new(
             EntityId(0), // placeholder, overwritten by upsert
             StableKey::new(kind.clone(), fingerprint),
@@ -289,14 +291,33 @@ mod tests {
     #[test]
     fn query_with_property_filter() {
         let mut graph = StateGraph::new();
-        graph.upsert(make_entity(EntityKind::TableRow, "r1", json!({"status": "Unpaid", "amount": 5000})));
-        graph.upsert(make_entity(EntityKind::TableRow, "r2", json!({"status": "Unpaid", "amount": 15000})));
-        graph.upsert(make_entity(EntityKind::TableRow, "r3", json!({"status": "Paid", "amount": 20000})));
+        graph.upsert(make_entity(
+            EntityKind::TableRow,
+            "r1",
+            json!({"status": "Unpaid", "amount": 5000}),
+        ));
+        graph.upsert(make_entity(
+            EntityKind::TableRow,
+            "r2",
+            json!({"status": "Unpaid", "amount": 15000}),
+        ));
+        graph.upsert(make_entity(
+            EntityKind::TableRow,
+            "r3",
+            json!({"status": "Paid", "amount": 20000}),
+        ));
 
-        let unpaid_large = graph.query(&EntityKind::TableRow, Some(&|e: &SemanticEntity| {
-            e.properties.get("status").and_then(|v| v.as_str()) == Some("Unpaid")
-                && e.properties.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0) > 10000.0
-        }));
+        let unpaid_large = graph.query(
+            &EntityKind::TableRow,
+            Some(&|e: &SemanticEntity| {
+                e.properties.get("status").and_then(|v| v.as_str()) == Some("Unpaid")
+                    && e.properties
+                        .get("amount")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0)
+                        > 10000.0
+            }),
+        );
 
         assert_eq!(unpaid_large.len(), 1);
         assert_eq!(unpaid_large[0].properties["amount"], 15000);

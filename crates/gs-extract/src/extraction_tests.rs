@@ -4,8 +4,8 @@ mod tests {
     use gs_types::*;
     use serde_json::json;
 
-    use crate::table::TableExtractor;
     use crate::Extractor;
+    use crate::table::TableExtractor;
 
     fn make_dom(html_structure: DomNode) -> RawObservation {
         RawObservation {
@@ -134,11 +134,13 @@ mod tests {
         let obs = make_dom(element("html", vec![], vec![table1, table2]));
         let entities = TableExtractor.extract(&obs);
 
-        let table_entities: Vec<_> = entities.iter().filter(|e| e.kind == EntityKind::Table).collect();
+        let table_entities: Vec<_> = entities
+            .iter()
+            .filter(|e| e.kind == EntityKind::Table)
+            .collect();
         assert_eq!(table_entities.len(), 2);
         assert_ne!(
-            table_entities[0].stable_key.fingerprint,
-            table_entities[1].stable_key.fingerprint,
+            table_entities[0].stable_key.fingerprint, table_entities[1].stable_key.fingerprint,
             "each table must have a unique fingerprint"
         );
         assert_eq!(table_entities[0].stable_key.fingerprint, "alpha");
@@ -173,11 +175,7 @@ mod tests {
                             vec![element(
                                 "span",
                                 vec![],
-                                vec![element(
-                                    "strong",
-                                    vec![],
-                                    vec![text_node("deep text")],
-                                )],
+                                vec![element("strong", vec![], vec![text_node("deep text")])],
                             )],
                         )],
                     )],
@@ -239,7 +237,10 @@ mod tests {
         let obs = make_dom(element("html", vec![], vec![table]));
         let entities = TableExtractor.extract(&obs);
 
-        let table_entity = entities.iter().find(|e| e.kind == EntityKind::Table).unwrap();
+        let table_entity = entities
+            .iter()
+            .find(|e| e.kind == EntityKind::Table)
+            .unwrap();
         assert_eq!(
             table_entity.properties["sorted_by"], "Amount",
             "sorted-asc class on th should populate sorted_by"
@@ -282,7 +283,10 @@ mod tests {
         let obs = make_dom(element("html", vec![], vec![table]));
         let entities = TableExtractor.extract(&obs);
 
-        let table_entity = entities.iter().find(|e| e.kind == EntityKind::Table).unwrap();
+        let table_entity = entities
+            .iter()
+            .find(|e| e.kind == EntityKind::Table)
+            .unwrap();
         assert!(
             table_entity.properties.get("sorted_by").is_none(),
             "no sorted class means sorted_by should not be present"
@@ -308,7 +312,10 @@ mod tests {
         let obs = make_dom(element("html", vec![], vec![table]));
         let entities = TableExtractor.extract(&obs);
 
-        let table_entity = entities.iter().find(|e| e.kind == EntityKind::Table).unwrap();
+        let table_entity = entities
+            .iter()
+            .find(|e| e.kind == EntityKind::Table)
+            .unwrap();
         assert_eq!(table_entity.stable_key.fingerprint, "my-table");
     }
 
@@ -331,7 +338,10 @@ mod tests {
         let obs = make_dom(element("html", vec![], vec![table]));
         let entities = TableExtractor.extract(&obs);
 
-        let table_entity = entities.iter().find(|e| e.kind == EntityKind::Table).unwrap();
+        let table_entity = entities
+            .iter()
+            .find(|e| e.kind == EntityKind::Table)
+            .unwrap();
         assert_eq!(
             table_entity.stable_key.fingerprint, "table-0",
             "table without id must use index-based fingerprint"

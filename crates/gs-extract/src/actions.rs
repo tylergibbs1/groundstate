@@ -49,20 +49,12 @@ fn derive_table_actions(table: &SemanticEntity, _graph: &StateGraph) -> Vec<Acti
             action_type: ActionType::Click,
             targets: vec![table.id],
             target_ref: TargetRef::Selector {
-                selector: format!(
-                    "{} th:nth-child({})",
-                    table.source.selector,
-                    col_idx + 1
-                ),
+                selector: format!("{} th:nth-child({})", table.source.selector, col_idx + 1),
             },
             preconditions: vec![Condition {
                 description: format!("Table header '{header}' is visible"),
                 check: ConditionCheck::ElementVisible {
-                    selector: format!(
-                        "{} th:nth-child({})",
-                        table.source.selector,
-                        col_idx + 1
-                    ),
+                    selector: format!("{} th:nth-child({})", table.source.selector, col_idx + 1),
                 },
             }],
             postconditions: vec![Condition {

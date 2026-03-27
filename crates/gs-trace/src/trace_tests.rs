@@ -13,7 +13,9 @@ mod tests {
         let events = tracer.events();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            TraceEvent::Navigation { url, status, seq, .. } => {
+            TraceEvent::Navigation {
+                url, status, seq, ..
+            } => {
                 assert_eq!(url, "https://example.com/page");
                 assert_eq!(*status, Some(200));
                 assert_eq!(*seq, 1);
@@ -126,10 +128,7 @@ mod tests {
         assert_eq!(events.len(), 1);
         match &events[0] {
             TraceEvent::Execution {
-                step,
-                result,
-                seq,
-                ..
+                step, result, seq, ..
             } => {
                 assert_eq!(step.id, "step-1");
                 assert_eq!(result.status, ExecutionStatus::Success);
@@ -236,7 +235,10 @@ mod tests {
         let data = tracer.to_trace_data();
         assert_eq!(data.session_id, "sess-456");
         assert_eq!(data.entries.len(), 3);
-        assert!(data.duration_ms < 5000, "duration should be near-instant in tests");
+        assert!(
+            data.duration_ms < 5000,
+            "duration should be near-instant in tests"
+        );
         assert!(data.started_at <= chrono::Utc::now());
     }
 

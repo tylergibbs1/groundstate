@@ -1,8 +1,8 @@
-pub mod table;
 pub mod actions;
-pub mod generic;
 #[cfg(test)]
 mod extraction_tests;
+pub mod generic;
+pub mod table;
 
 use gs_graph::StateGraph;
 use gs_types::{RawObservation, SemanticEntity};

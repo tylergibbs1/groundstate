@@ -59,8 +59,7 @@ impl Observer {
     ) -> Result<(), TransportError> {
         let mut rx = transport.event_receiver();
         let settle = std::time::Duration::from_millis(self.settle_delay_ms);
-        let deadline = tokio::time::Instant::now()
-            + std::time::Duration::from_millis(timeout_ms);
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
 
         loop {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());

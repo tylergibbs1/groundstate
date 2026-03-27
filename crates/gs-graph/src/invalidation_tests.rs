@@ -162,10 +162,7 @@ mod tests {
         let invalidated = graph.invalidate(parent);
 
         // parent and dependent should be stale; child (ChildOf only) should not
-        assert!(
-            invalidated.contains(&parent),
-            "parent must be invalidated"
-        );
+        assert!(invalidated.contains(&parent), "parent must be invalidated");
         assert!(
             invalidated.contains(&dependent),
             "DependsOn dependent must be invalidated"

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use gs_types::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast, oneshot, Mutex};
+use tokio::sync::{Mutex, broadcast, oneshot};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
@@ -50,10 +50,7 @@ impl CdpTransport {
 
     /// Send a CDP command and wait for the response.
     async fn send_command(&self, method: &str, params: Value) -> Result<Value, TransportError> {
-        let write = self
-            .write
-            .as_ref()
-            .ok_or(TransportError::NotConnected)?;
+        let write = self.write.as_ref().ok_or(TransportError::NotConnected)?;
 
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let msg = json!({
@@ -126,10 +123,7 @@ impl CdpTransport {
             TargetRef::Selector { selector } => {
                 // Use DOM.querySelector to resolve the selector
                 let result = self
-                    .send_command(
-                        "DOM.getDocument",
-                        json!({"depth": 0}),
-                    )
+                    .send_command("DOM.getDocument", json!({"depth": 0}))
                     .await?;
 
                 let root_id = result["root"]["nodeId"]
@@ -160,7 +154,10 @@ impl CdpTransport {
     }
 
     /// Get the box model for a node, then compute the center point for clicking.
-    async fn get_click_point(&self, resolved: &ResolvedTarget) -> Result<(f64, f64), TransportError> {
+    async fn get_click_point(
+        &self,
+        resolved: &ResolvedTarget,
+    ) -> Result<(f64, f64), TransportError> {
         let params = match resolved {
             ResolvedTarget::NodeId(id) => json!({"nodeId": id}),
             ResolvedTarget::BackendNodeId(id) => json!({"backendNodeId": id}),
@@ -235,14 +232,8 @@ impl BrowserTransport for CdpTransport {
                             description: "document updated".into(),
                         }),
                         "Page.frameNavigated" => {
-                            let url = params["frame"]["url"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string();
-                            let frame_id = params["frame"]["id"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string();
+                            let url = params["frame"]["url"].as_str().unwrap_or("").to_string();
+                            let frame_id = params["frame"]["id"].as_str().unwrap_or("").to_string();
                             *current_url.lock().await = url.clone();
                             Some(BrowserEvent::FrameNavigated { frame_id, url })
                         }
@@ -250,49 +241,23 @@ impl BrowserTransport for CdpTransport {
                             let url = current_url.lock().await.clone();
                             Some(BrowserEvent::LoadComplete { url })
                         }
-                        "Network.requestWillBeSent" => {
-                            Some(BrowserEvent::NetworkRequest {
-                                request_id: params["requestId"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                                url: params["request"]["url"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                                method: params["request"]["method"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                            })
-                        }
-                        "Network.responseReceived" => {
-                            Some(BrowserEvent::NetworkResponse {
-                                request_id: params["requestId"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                                status: params["response"]["status"]
-                                    .as_i64()
-                                    .unwrap_or(0) as i32,
-                                url: params["response"]["url"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                            })
-                        }
-                        "Page.javascriptDialogOpening" => {
-                            Some(BrowserEvent::DialogOpened {
-                                dialog_type: params["type"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                                message: params["message"]
-                                    .as_str()
-                                    .unwrap_or("")
-                                    .to_string(),
-                            })
-                        }
+                        "Network.requestWillBeSent" => Some(BrowserEvent::NetworkRequest {
+                            request_id: params["requestId"].as_str().unwrap_or("").to_string(),
+                            url: params["request"]["url"].as_str().unwrap_or("").to_string(),
+                            method: params["request"]["method"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                        }),
+                        "Network.responseReceived" => Some(BrowserEvent::NetworkResponse {
+                            request_id: params["requestId"].as_str().unwrap_or("").to_string(),
+                            status: params["response"]["status"].as_i64().unwrap_or(0) as i32,
+                            url: params["response"]["url"].as_str().unwrap_or("").to_string(),
+                        }),
+                        "Page.javascriptDialogOpening" => Some(BrowserEvent::DialogOpened {
+                            dialog_type: params["type"].as_str().unwrap_or("").to_string(),
+                            message: params["message"].as_str().unwrap_or("").to_string(),
+                        }),
                         _ => None,
                     };
 
@@ -329,10 +294,7 @@ impl BrowserTransport for CdpTransport {
             return Err(TransportError::NavigationFailed(error.to_string()));
         }
 
-        let frame_id = result["frameId"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let frame_id = result["frameId"].as_str().unwrap_or("").to_string();
         let loader_id = result["loaderId"].as_str().map(String::from);
 
         // Wait for load event
@@ -362,12 +324,10 @@ impl BrowserTransport for CdpTransport {
             .send_command("DOM.getDocument", json!({"depth": -1, "pierce": true}))
             .await?;
 
-        let root = result
-            .get("root")
-            .ok_or_else(|| TransportError::CdpError {
-                method: "DOM.getDocument".into(),
-                message: "no root in response".into(),
-            })?;
+        let root = result.get("root").ok_or_else(|| TransportError::CdpError {
+            method: "DOM.getDocument".into(),
+            message: "no root in response".into(),
+        })?;
 
         Ok(DomSnapshot {
             root: Self::parse_dom_node(root),
@@ -404,10 +364,7 @@ impl BrowserTransport for CdpTransport {
 
                         A11yNode {
                             node_id: node["nodeId"].as_str().unwrap_or("").to_string(),
-                            role: node["role"]["value"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
+                            role: node["role"]["value"].as_str().unwrap_or("").to_string(),
                             name: node["name"]["value"].as_str().map(String::from),
                             value: node["value"]["value"].as_str().map(String::from),
                             backend_dom_node_id: node["backendDOMNodeId"].as_i64(),
@@ -489,7 +446,8 @@ impl BrowserTransport for CdpTransport {
         let resolved = self.resolve_target(target).await?;
         match &resolved {
             ResolvedTarget::NodeId(id) => {
-                self.send_command("DOM.focus", json!({"nodeId": id})).await?;
+                self.send_command("DOM.focus", json!({"nodeId": id}))
+                    .await?;
             }
             ResolvedTarget::BackendNodeId(id) => {
                 self.send_command("DOM.focus", json!({"backendNodeId": id}))

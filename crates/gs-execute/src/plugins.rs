@@ -3,7 +3,7 @@ use gs_transport::BrowserTransport;
 use gs_types::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{execute_action, SessionState};
+use crate::{SessionState, execute_action};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

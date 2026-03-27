@@ -7,8 +7,8 @@ use base64::Engine;
 use gs_execute::SessionState;
 use gs_execute::plugins::PluginRegistration;
 use gs_extract::actions::ActionDeriver;
-use gs_transport::cdp::CdpTransport;
 use gs_transport::BrowserTransport;
+use gs_transport::cdp::CdpTransport;
 use gs_types::*;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -124,9 +124,7 @@ impl NativeSession {
                 let ids = state
                     .pipeline
                     .extract_and_upsert(&observation, &mut state.graph);
-                state
-                    .tracer
-                    .record_extraction("initial", ids.len(), 0);
+                state.tracer.record_extraction("initial", ids.len(), 0);
                 record_graph_snapshot(&state, "initial", &observation.url, &before_keys);
             }
         }
@@ -209,7 +207,11 @@ impl NativeSession {
             .collect();
 
         let mut actions = ActionDeriver::derive_actions_for_ids(&entity_ids, &state.graph);
-        actions.extend(state.plugins.derive_actions_for_ids(&entity_ids, &state.graph));
+        actions.extend(
+            state
+                .plugins
+                .derive_actions_for_ids(&entity_ids, &state.graph),
+        );
 
         let dtos: Vec<ActionDto> = actions
             .iter()
@@ -274,13 +276,8 @@ impl NativeSession {
         let mut state = self.state.lock().await;
         let mut transport = self.transport.lock().await;
 
-        let mut result = gs_execute::execute_action(
-            &step.action,
-            &step,
-            &mut state,
-            &mut *transport,
-        )
-        .await;
+        let mut result =
+            gs_execute::execute_action(&step.action, &step, &mut state, &mut *transport).await;
 
         if result.status == ExecutionStatus::Failed {
             let plugins = state.plugins.clone();
@@ -349,12 +346,12 @@ impl NativeSession {
         state.pipeline = pipeline;
         let duration_ms = start.elapsed().as_millis() as u64;
 
-        state.tracer.record_observation(
-            &observation.url,
-            ids.len(),
-            duration_ms,
-        );
-        state.tracer.record_extraction("refresh", ids.len(), duration_ms);
+        state
+            .tracer
+            .record_observation(&observation.url, ids.len(), duration_ms);
+        state
+            .tracer
+            .record_extraction("refresh", ids.len(), duration_ms);
         record_graph_snapshot(&state, "refresh", &observation.url, &before_keys);
 
         let entities: Vec<EntityDto> = state
@@ -580,18 +577,22 @@ fn matches_where_clause(entity: &SemanticEntity, where_clause: &serde_json::Valu
                     let result = match op.as_str() {
                         "eq" => actual_val == cmp_val,
                         "neq" => actual_val != cmp_val,
-                        "gt" => compare_values(actual_val, cmp_val) == Some(std::cmp::Ordering::Greater),
-                        "gte" => compare_values(actual_val, cmp_val).is_some_and(|o| o != std::cmp::Ordering::Less),
-                        "lt" => compare_values(actual_val, cmp_val) == Some(std::cmp::Ordering::Less),
-                        "lte" => compare_values(actual_val, cmp_val).is_some_and(|o| o != std::cmp::Ordering::Greater),
+                        "gt" => {
+                            compare_values(actual_val, cmp_val) == Some(std::cmp::Ordering::Greater)
+                        }
+                        "gte" => compare_values(actual_val, cmp_val)
+                            .is_some_and(|o| o != std::cmp::Ordering::Less),
+                        "lt" => {
+                            compare_values(actual_val, cmp_val) == Some(std::cmp::Ordering::Less)
+                        }
+                        "lte" => compare_values(actual_val, cmp_val)
+                            .is_some_and(|o| o != std::cmp::Ordering::Greater),
                         "in" => cmp_val
                             .as_array()
                             .is_some_and(|arr| arr.contains(actual_val)),
-                        "contains" => {
-                            actual_val.as_str().is_some_and(|a| {
-                                cmp_val.as_str().is_some_and(|c| a.contains(c))
-                            })
-                        }
+                        "contains" => actual_val
+                            .as_str()
+                            .is_some_and(|a| cmp_val.as_str().is_some_and(|c| a.contains(c))),
                         _ => true,
                     };
                     if !result {
@@ -646,7 +647,9 @@ fn remap_value(value: &mut serde_json::Value, id_map: &std::collections::HashMap
                 *entity_id = serde_json::Value::Number(internal_id.into());
             }
             // Remap "type" → "action_type" (TS DTO uses "type", Rust struct uses "action_type")
-            if map.contains_key("type") && !map.contains_key("action_type") && map.contains_key("targets")
+            if map.contains_key("type")
+                && !map.contains_key("action_type")
+                && map.contains_key("targets")
                 && let Some(type_val) = map.remove("type")
             {
                 map.insert("action_type".to_string(), type_val);

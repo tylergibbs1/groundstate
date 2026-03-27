@@ -47,9 +47,7 @@ fn evaluate_condition(condition: &Condition, graph: &StateGraph) -> ConditionRes
             let message = if passed {
                 None
             } else {
-                Some(format!(
-                    "expected {field} = {expected}, got {actual:?}",
-                ))
+                Some(format!("expected {field} = {expected}, got {actual:?}",))
             };
 
             ConditionResult {
