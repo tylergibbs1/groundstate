@@ -722,6 +722,78 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: entity identity survives pagination content replacement",
+    slug: "benign-pagination-identity",
+    bucket: "B",
+    mutationType: "full_content_replacement",
+    fixture: "pagination.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("page-1", before);
+      const tableBefore = before.find((e) => e._entity === "Table");
+      expect(tableBefore, "table missing on page 1");
+      const rowCountBefore = tableBefore.row_count;
+
+      await cdp.click("#next-btn");
+      ctx.mutate("paginate-to-page-2", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-pagination-identity", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("page-2", after);
+      const tableAfter = after.find((e) => e._entity === "Table");
+      const rowCountAfter = tableAfter?.row_count ?? 0;
+      const survived = Boolean(tableAfter && rowCountAfter > 0 && rowCountAfter === rowCountBefore);
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "table structure persists across page transition with same row count",
+        survived,
+        rowCountBefore,
+        rowCountAfter,
+      );
+    },
+  },
+  {
+    name: "Benign churn: button relabel does not invalidate action target",
+    slug: "benign-relabel-survival",
+    bucket: "B",
+    mutationType: "label_text_changes",
+    fixture: "relabel.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-relabel", before);
+      const downloadBtns = before.filter(
+        (e) => e._entity === "Button" && e.label?.includes("Download"),
+      );
+      expect(downloadBtns.length > 0, "no download buttons found");
+
+      await cdp.click('.btn-download[data-row="0"]');
+      ctx.mutate("button-label-transitions", true);
+      ctx.action("click-download", { success: true });
+      await sleep(2000);
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-relabel-survival", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-relabel", after);
+      const doneBtn = after.find(
+        (e) => e._entity === "Button" && e.label?.includes("Downloaded"),
+      );
+      const otherBtns = after.filter(
+        (e) => e._entity === "Button" && e.label === "Download",
+      );
+      const survived = Boolean(doneBtn && otherBtns.length === downloadBtns.length - 1);
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "download button transitions to Done and other buttons remain",
+        survived,
+        { done: true, remaining: downloadBtns.length - 1 },
+        { done: Boolean(doneBtn), remaining: otherBtns.length },
+      );
+    },
+  },
+  {
     name: "Real disruption: validation banner forces replan",
     slug: "disruption-validation-replan",
     bucket: "C",
