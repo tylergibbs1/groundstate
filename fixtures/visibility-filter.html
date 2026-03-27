@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Visibility-Aware Extraction Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    th { background: #1a1a2e; color: white; }
+    .toolbar { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+    .toolbar button { padding: 6px 14px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; }
+    .toolbar button.active { background: #228be6; color: white; border-color: #228be6; }
+    .priority-high { color: #c92a2a; font-weight: 600; }
+    .priority-medium { color: #e67700; font-weight: 600; }
+    .priority-low { color: #2b8a3e; font-weight: 600; }
+    #count { margin: 1rem 0; color: #495057; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Task Board — Priority Filter</h2>
+  <div class="toolbar">
+    <button class="active" data-filter="all" id="filter-all">All (8)</button>
+    <button data-filter="high" id="filter-high">High (3)</button>
+    <button data-filter="medium" id="filter-medium">Medium (3)</button>
+    <button data-filter="low" id="filter-low">Low (2)</button>
+  </div>
+  <p id="count">Showing 8 tasks</p>
+  <table id="tasks">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Assignee</th>
+        <th>Priority</th>
+        <th>Due</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-row-id="t1" data-priority="high">
+        <td>Fix login bug</td>
+        <td>Alice</td>
+        <td class="priority-high">High</td>
+        <td>2026-03-28</td>
+      </tr>
+      <tr data-row-id="t2" data-priority="medium">
+        <td>Update docs</td>
+        <td>Bob</td>
+        <td class="priority-medium">Medium</td>
+        <td>2026-04-01</td>
+      </tr>
+      <tr data-row-id="t3" data-priority="low">
+        <td>Refactor utils</td>
+        <td>Carol</td>
+        <td class="priority-low">Low</td>
+        <td>2026-04-15</td>
+      </tr>
+      <tr data-row-id="t4" data-priority="high">
+        <td>Security audit</td>
+        <td>Dan</td>
+        <td class="priority-high">High</td>
+        <td>2026-03-29</td>
+      </tr>
+      <tr data-row-id="t5" data-priority="medium">
+        <td>Add caching</td>
+        <td>Elena</td>
+        <td class="priority-medium">Medium</td>
+        <td>2026-04-05</td>
+      </tr>
+      <tr data-row-id="t6" data-priority="high">
+        <td>Deploy hotfix</td>
+        <td>Frank</td>
+        <td class="priority-high">High</td>
+        <td>2026-03-27</td>
+      </tr>
+      <tr data-row-id="t7" data-priority="low">
+        <td>Clean up CI</td>
+        <td>Grace</td>
+        <td class="priority-low">Low</td>
+        <td>2026-04-20</td>
+      </tr>
+      <tr data-row-id="t8" data-priority="medium">
+        <td>Write tests</td>
+        <td>Hank</td>
+        <td class="priority-medium">Medium</td>
+        <td>2026-04-10</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script>
+    document.querySelectorAll('.toolbar button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        let visible = 0;
+        document.querySelectorAll('#tasks tbody tr').forEach(row => {
+          const priority = row.dataset.priority;
+          const show = filter === 'all' || priority === filter;
+          row.style.display = show ? '' : 'none';
+          if (show) visible++;
+        });
+        document.getElementById('count').textContent = 'Showing ' + visible + ' tasks';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -222,12 +222,17 @@ export class CdpClient {
             : [...(tbl.querySelector(':scope > tr')?.querySelectorAll(':scope > th') || [])];
           return ths;
         };
+        const isVisible = (el) => {
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+        };
         const ownRows = (tbl) => {
           const tbody = tbl.querySelector(':scope > tbody');
-          if (tbody) return [...tbody.querySelectorAll(':scope > tr')];
-          return [...tbl.querySelectorAll(':scope > tr')].filter(
-            tr => tr.querySelector(':scope > td')
-          );
+          const candidates = tbody
+            ? [...tbody.querySelectorAll(':scope > tr')]
+            : [...tbl.querySelectorAll(':scope > tr')].filter(tr => tr.querySelector(':scope > td'));
+          return candidates.filter(tr => isVisible(tr));
         };
         document.querySelectorAll('table').forEach((table, ti) => {
           const id = table.id || 'table-' + ti;

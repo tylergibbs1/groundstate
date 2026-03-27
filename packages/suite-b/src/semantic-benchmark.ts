@@ -1374,6 +1374,47 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: hidden rows excluded from extraction after priority filter",
+    slug: "benign-visibility-filter",
+    bucket: "B",
+    mutationType: "css_display_none_filter",
+    fixture: "visibility-filter.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-filter", before);
+      const allRows = rowsFrom(before);
+      expect(allRows.length === 8, `expected 8 rows before filter, got ${allRows.length}`);
+
+      // Filter to "High" priority only (3 rows visible)
+      await cdp.click("#filter-high");
+      ctx.mutate("filter-hides-non-high-rows", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-visibility-filter", "after-filter");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-filter", after);
+      const visibleRows = rowsFrom(after);
+
+      // After filtering to "High", only 3 rows should be extracted
+      // If the extractor ignores visibility, it will still return 8
+      const survived = visibleRows.length === 3;
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "only 3 high-priority rows extracted after filter (hidden rows excluded)",
+        survived,
+        3,
+        visibleRows.length,
+      );
+
+      // Hard fail — this is the key test
+      expect(
+        visibleRows.length <= 3,
+        `extracted ${visibleRows.length} rows after filter, expected 3 (hidden rows leaked into extraction)`,
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",
