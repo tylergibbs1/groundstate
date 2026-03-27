@@ -32,7 +32,7 @@ packages/              TypeScript workspace (pnpm)
   napi/                @groundstate/napi -- npm wrapper for gs-napi
   core/                @groundstate/core -- runtime, session, entity bridge
   eval/                @groundstate/eval -- metrics, assertions, golden traces
-  suite-b/             Semantic benchmark -- 20 tests across 3 mutation buckets
+  suite-b/             Semantic benchmark -- 29 tests across 3 mutation buckets
   agent-test/          Agent SDK integration tests
   inspector/           Next.js UI for inspecting runtime state
 
@@ -67,13 +67,13 @@ just ci                           # full CI pipeline locally
 
 ## Semantic benchmark
 
-The benchmark runs 20 test cases across three buckets of DOM mutation severity:
+The benchmark runs 29 test cases across three buckets of DOM mutation severity:
 
 | Bucket | What it tests | Examples |
 |--------|---------------|---------|
-| **A -- Stable** | Extraction correctness on static pages | Invoice filtering, sort validation, search results, docs page |
-| **B -- Benign churn** | Entity identity survives harmless mutations | Rerenders, row reorder, lazy load, pagination, column changes, ID regeneration, async updates |
-| **C -- Real disruption** | Detection, replanning, and recovery | Validation errors, auth timeout, disabled buttons, row removal |
+| **A -- Stable** | Extraction correctness on static pages | Invoice filtering, sort validation, search results, docs page, nested table isolation, noisy DOM, ARIA tab state, row action context |
+| **B -- Benign churn** | Entity identity survives harmless mutations | Rerenders, row reorder, lazy load, pagination, column changes, ID regeneration, async updates, visibility filter, content-keyed shuffle, nested subtable expand, ARIA accordion toggle |
+| **C -- Real disruption** | Detection, replanning, and recovery | Validation errors, auth timeout, disabled buttons, row removal, fieldset disabled propagation |
 
 ```sh
 pnpm test:semantic                # headless
