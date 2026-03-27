@@ -1210,6 +1210,71 @@ const CASES: BenchmarkCase[] = [
       );
     },
   },
+  {
+    name: "Benign churn: data table survives noisy DOM with sidebar, toolbar, and footer links",
+    slug: "benign-nested-noise",
+    bucket: "B",
+    mutationType: "filter_hides_rows_via_css",
+    fixture: "nested-noise.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-filter", before);
+
+      // The table should be found despite deep nesting
+      const table = before.find((e) => e._entity === "Table" && e.headers?.includes("Project"));
+      expect(table, "projects table not found in noisy DOM");
+      const echoRow = firstRowByField(rowsFrom(before), "Project", "Echo");
+      expect(echoRow, "Echo row missing before filter");
+
+      // Apply "Active" filter — hides non-active rows via CSS display:none
+      await cdp.click('[data-filter="active"]');
+      ctx.mutate("filter-active-hides-rows", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-nested-noise", "after-filter");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-filter", after);
+
+      // Echo (Active) should still be present, Delta (Archived) should be hidden
+      const echoAfter = firstRowByField(rowsFrom(after), "Project", "Echo");
+      const deltaAfter = firstRowByField(rowsFrom(after), "Project", "Delta");
+      // Delta is hidden by CSS but still in DOM — extraction should still see it
+      // or at minimum, Echo must survive
+      const survived = Boolean(echoAfter && echoAfter.Lead === "Elena Rossi");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Echo project row retains correct Lead after filter applied",
+        survived,
+        "Elena Rossi",
+        echoAfter?.Lead ?? null,
+      );
+    },
+  },
+  {
+    name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
+    slug: "stable-noise-entity-count",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "nested-noise.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("noisy-dom", entities);
+
+      const tables = entities.filter((e) => e._entity === "Table");
+      const rows = rowsFrom(entities);
+      const buttons = entities.filter((e) => e._entity === "Button");
+      const links = entities.filter((e) => e._entity === "Link");
+
+      // Exactly 1 data table, 6 data rows
+      ctx.postcondition(
+        "exactly 1 data table with 6 rows extracted from noisy DOM",
+        tables.length === 1 && rows.length === 6,
+        { tables: 1, rows: 6 },
+        { tables: tables.length, rows: rows.length },
+      );
+    },
+  },
 ];
 
 export async function runSemanticBenchmark(

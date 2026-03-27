@@ -1,0 +1,58 @@
+# research.toml — auto-research configuration for semantic benchmark optimization
+
+# A short name for this research run
+tag = "semantic-scores"
+
+# Files the agent can modify to improve benchmark scores
+modifiable_files = [
+  "packages/suite-b/src/semantic-benchmark.ts",
+  "packages/suite-b/src/cdp.ts",
+  "fixtures/invoices.html",
+  "fixtures/validation-error.html",
+  "fixtures/rerender.html",
+  "fixtures/lazy-rows.html",
+  "fixtures/modal-interrupt.html",
+  "fixtures/auth-timeout.html",
+  "fixtures/disabled-button.html",
+  "fixtures/nested-noise.html",
+  "fixtures/content-keyed.html",
+]
+
+# Context files — read but never modify
+readonly_files = [
+  "packages/eval/src/metrics.ts",
+  "packages/eval/src/recorder.ts",
+  "packages/suite-b/src/run-semantic.ts",
+  "packages/suite-b/src/harness.ts",
+  "packages/core/src/entity.ts",
+  "packages/core/src/session.ts",
+  "crates/gs-types/src/entity.rs",
+  "crates/gs-types/src/condition.rs",
+  "crates/gs-graph/src/lib.rs",
+  "crates/gs-extract/src/lib.rs",
+  "crates/gs-validate/src/lib.rs",
+]
+
+# Command to run each experiment
+run_command = "bash run-benchmark.sh"
+
+# How to extract the primary metric from run.log
+metric_grep = "^composite_score:"
+
+# Name of the primary metric
+metric_name = "composite_score"
+
+# Higher composite score is better (weighted: pass rate + plan survival + recovery - penalties)
+metric_direction = "higher"
+
+# Secondary metrics to track
+secondary_metrics = [
+  "pass rate:",
+  "plan survival:",
+  "stale action escape:",
+  "false invalidation:",
+  "recovery success:",
+]
+
+# Benchmark takes ~30-60s normally, allow up to 3 minutes
+timeout_seconds = 180
