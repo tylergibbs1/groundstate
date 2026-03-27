@@ -1303,6 +1303,77 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Stable: nested table rows not double-counted in parent table",
+    slug: "stable-nested-table-isolation",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "nested-table.html",
+    run: async (cdp, ctx) => {
+      // Expand all detail rows so subtables are visible
+      await cdp.click('[data-target="detail-001"]');
+      await cdp.click('[data-target="detail-002"]');
+      await cdp.click('[data-target="detail-003"]');
+      await sleep(200);
+
+      const entities = await cdp.extractEntities();
+      ctx.observe("nested-tables", entities);
+
+      const tables = entities.filter((e) => e._entity === "Table");
+      const ordersTable = tables.find((t) => t.headers?.includes("Order ID"));
+
+      // The parent table should have exactly 6 tbody children (3 order rows + 3 detail rows)
+      // but row_count should only count actual data rows, not subtable rows mixed in
+      const orderRows = rowsFrom(entities).filter((r) => r["Order ID"]?.startsWith("ORD-"));
+
+      // Parent table must not report inflated row count from nested subtable rows
+      const rowCountCorrect = ordersTable != null && ordersTable.row_count <= 6;
+      const orderRowsCorrect = orderRows.length >= 3;
+
+      ctx.postcondition(
+        "parent table row count not inflated by nested subtable rows",
+        rowCountCorrect && orderRowsCorrect,
+        { tableRowCount: "<=6", orderEntities: ">=3" },
+        { tableRowCount: ordersTable?.row_count ?? 0, orderEntities: orderRows.length },
+      );
+
+      // Hard fail if the parent table is wildly wrong — this is the real test
+      expect(rowCountCorrect, `parent table row_count=${ordersTable?.row_count ?? "?"}, expected <=6 (got nested rows mixed in)`);
+    },
+  },
+  {
+    name: "Benign churn: expand subtable does not invalidate parent row identity",
+    slug: "benign-nested-table-expand",
+    bucket: "B",
+    mutationType: "subtable_visibility_toggle",
+    fixture: "nested-table.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-expand", before);
+      const bobBefore = firstRowByField(rowsFrom(before), "Customer", "Bob Martinez");
+      expect(bobBefore, "Bob Martinez row missing before expand");
+
+      // Expand Bob's detail row
+      await cdp.click('[data-target="detail-002"]');
+      ctx.mutate("subtable-revealed", true);
+      await sleep(200);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-nested-table-expand", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-expand", after);
+      const bobAfter = firstRowByField(rowsFrom(after), "Customer", "Bob Martinez");
+      const survived = Boolean(bobAfter && bobAfter.Total === "$3,400.00" && bobAfter.Status === "Processing");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Bob Martinez row retains correct data after subtable expanded",
+        survived,
+        { Total: "$3,400.00", Status: "Processing" },
+        { Total: bobAfter?.Total ?? null, Status: bobAfter?.Status ?? null },
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",

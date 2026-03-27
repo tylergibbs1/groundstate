@@ -213,22 +213,42 @@ export class CdpClient {
         };
 
         const entities = [];
+        const ownThead = (tbl) => tbl.querySelector(':scope > thead') || null;
+        const ownTbody = (tbl) => tbl.querySelector(':scope > tbody') || tbl;
+        const ownHeaders = (tbl) => {
+          const thead = ownThead(tbl);
+          const ths = thead
+            ? [...thead.querySelectorAll(':scope > tr > th')]
+            : [...(tbl.querySelector(':scope > tr')?.querySelectorAll(':scope > th') || [])];
+          return ths;
+        };
+        const ownRows = (tbl) => {
+          const tbody = tbl.querySelector(':scope > tbody');
+          if (tbody) return [...tbody.querySelectorAll(':scope > tr')];
+          return [...tbl.querySelectorAll(':scope > tr')].filter(
+            tr => tr.querySelector(':scope > td')
+          );
+        };
         document.querySelectorAll('table').forEach((table, ti) => {
           const id = table.id || 'table-' + ti;
-          const headers = [...table.querySelectorAll('th')].map(th => th.textContent.trim());
-          const sortedTh = [...table.querySelectorAll('th')].find(
+          const headerEls = ownHeaders(table);
+          const headers = headerEls.map(th => th.textContent.trim());
+          const sortedTh = headerEls.find(
             th => th.classList.contains('sorted-asc') || th.classList.contains('sorted-desc')
+          );
+          const dataRows = ownRows(table).filter(
+            tr => tr.querySelector(':scope > td')
           );
           entities.push(entity(
             id, 'Table', '#' + id, 0.9,
             {
-            headers, row_count: table.querySelectorAll('tbody tr').length,
+            headers, row_count: dataRows.length,
             sorted_by: sortedTh ? sortedTh.textContent.trim() : null,
             sort_direction: sortedTh ? (sortedTh.classList.contains('sorted-asc') ? 'asc' : 'desc') : null,
             }
           ));
-          table.querySelectorAll('tbody tr').forEach((tr, ri) => {
-            const cells = [...tr.querySelectorAll('td')].map(td => td.textContent.trim());
+          dataRows.forEach((tr, ri) => {
+            const cells = [...tr.querySelectorAll(':scope > td')].map(td => td.textContent.trim());
             const row = entity(
               id+'-row-'+rowIdentity(tr, ri),
               'TableRow',

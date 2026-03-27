@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nested Table Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    th { background: #1a1a2e; color: white; }
+    .subtable { box-shadow: none; width: auto; margin: 4px 0; }
+    .subtable th { background: #495057; font-size: 12px; padding: 4px 8px; }
+    .subtable td { font-size: 12px; padding: 4px 8px; border-bottom: 1px solid #dee2e6; }
+    .expand-btn { cursor: pointer; background: none; border: 1px solid #dee2e6; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+    .details-row { display: none; }
+    .details-row.open { display: table-row; }
+    .details-row td { background: #f8f9fa; }
+  </style>
+</head>
+<body>
+  <h2>Orders — Expandable Details</h2>
+  <table id="orders">
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Customer</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-row-id="ord-001">
+        <td>ORD-001</td>
+        <td>Alice Chen</td>
+        <td>$1,250.00</td>
+        <td>Shipped</td>
+        <td><button class="expand-btn" data-target="detail-001">+</button></td>
+      </tr>
+      <tr class="details-row" id="detail-001">
+        <td colspan="5">
+          <table class="subtable">
+            <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
+            <tbody>
+              <tr><td>Widget A</td><td>5</td><td>$150.00</td></tr>
+              <tr><td>Widget B</td><td>2</td><td>$250.00</td></tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      <tr data-row-id="ord-002">
+        <td>ORD-002</td>
+        <td>Bob Martinez</td>
+        <td>$3,400.00</td>
+        <td>Processing</td>
+        <td><button class="expand-btn" data-target="detail-002">+</button></td>
+      </tr>
+      <tr class="details-row" id="detail-002">
+        <td colspan="5">
+          <table class="subtable">
+            <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
+            <tbody>
+              <tr><td>Gadget X</td><td>10</td><td>$200.00</td></tr>
+              <tr><td>Gadget Y</td><td>4</td><td>$350.00</td></tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      <tr data-row-id="ord-003">
+        <td>ORD-003</td>
+        <td>Carol Wu</td>
+        <td>$890.00</td>
+        <td>Delivered</td>
+        <td><button class="expand-btn" data-target="detail-003">+</button></td>
+      </tr>
+      <tr class="details-row" id="detail-003">
+        <td colspan="5">
+          <table class="subtable">
+            <thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead>
+            <tbody>
+              <tr><td>Part Z</td><td>1</td><td>$890.00</td></tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script>
+    document.querySelectorAll('.expand-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        target.classList.toggle('open');
+        btn.textContent = target.classList.contains('open') ? '−' : '+';
+      });
+    });
+  </script>
+</body>
+</html>
