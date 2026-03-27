@@ -766,6 +766,39 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: row field mapping survives column reorder",
+    slug: "benign-column-reorder",
+    bucket: "B",
+    mutationType: "column_order_changes",
+    fixture: "column-reorder.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-column-reorder", before);
+      const atlasBefore = firstRowByField(rowsFrom(before), "Project", "Atlas");
+      expect(atlasBefore, "Atlas row missing before column reorder");
+      const leadBefore = atlasBefore.Lead;
+      expect(leadBefore === "Alice Chen", `Expected Lead=Alice Chen, got ${leadBefore}`);
+
+      await cdp.click("#reorder-btn");
+      ctx.mutate("columns-reversed", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-column-reorder", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-column-reorder", after);
+      const atlasAfter = firstRowByField(rowsFrom(after), "Project", "Atlas");
+      const survived = Boolean(atlasAfter && atlasAfter.Lead === "Alice Chen");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "Atlas row has correct Lead field after column reorder",
+        survived,
+        "Alice Chen",
+        atlasAfter?.Lead ?? null,
+      );
+    },
+  },
+  {
     name: "Benign churn: entity survives when DOM IDs are regenerated",
     slug: "benign-id-churn-survival",
     bucket: "B",
