@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Row Action Context Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f8f9fa; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    th { background: #1a1a2e; color: white; }
+    .actions-cell { white-space: nowrap; }
+    .actions-cell button { padding: 4px 12px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 4px; }
+    .actions-cell button.danger { color: #c92a2a; border-color: #ffa8a8; }
+    .actions-cell button.primary { color: #1971c2; border-color: #a5d8ff; }
+    #banner { display: none; padding: 12px 16px; border-radius: 4px; margin-bottom: 1rem; }
+    #banner.visible { display: block; }
+    #banner.success { background: #d3f9d8; color: #2b8a3e; }
+  </style>
+</head>
+<body>
+  <h2>User Management — Row Actions</h2>
+  <div id="banner"></div>
+  <table id="users">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-row-id="user-1">
+        <td>Alice Chen</td>
+        <td>alice@example.com</td>
+        <td>Admin</td>
+        <td class="actions-cell">
+          <button class="btn-edit primary" data-user="user-1">Edit</button>
+          <button class="btn-delete danger" data-user="user-1">Delete</button>
+        </td>
+      </tr>
+      <tr data-row-id="user-2">
+        <td>Bob Martinez</td>
+        <td>bob@example.com</td>
+        <td>Editor</td>
+        <td class="actions-cell">
+          <button class="btn-edit primary" data-user="user-2">Edit</button>
+          <button class="btn-delete danger" data-user="user-2">Delete</button>
+        </td>
+      </tr>
+      <tr data-row-id="user-3">
+        <td>Carol Wu</td>
+        <td>carol@example.com</td>
+        <td>Viewer</td>
+        <td class="actions-cell">
+          <button class="btn-edit primary" data-user="user-3">Edit</button>
+          <button class="btn-delete danger" data-user="user-3">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <script>
+    document.querySelectorAll('.btn-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        const name = row.querySelector('td:first-child').textContent;
+        const banner = document.getElementById('banner');
+        banner.className = 'visible success';
+        banner.textContent = 'Editing ' + name;
+      });
+    });
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        row.remove();
+        const banner = document.getElementById('banner');
+        banner.className = 'visible success';
+        banner.textContent = 'User deleted';
+      });
+    });
+  </script>
+</body>
+</html>

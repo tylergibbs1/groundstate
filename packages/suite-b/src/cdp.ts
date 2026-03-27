@@ -307,6 +307,32 @@ export class CdpClient {
           }
           return false;
         };
+        // Collect data-* attributes from an element as a plain object
+        const dataAttrs = (el) => {
+          const result = {};
+          for (const attr of el.attributes) {
+            if (attr.name.startsWith('data-')) {
+              const key = attr.name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+              result[key] = attr.value;
+            }
+          }
+          return result;
+        };
+        // Enrich an entity with its semantic context — parent row, form, or section
+        const rowContext = (el) => {
+          const tr = el.closest('tr[data-row-id], tr[data-id], tr[data-key]');
+          if (tr) {
+            const attrs = dataAttrs(tr);
+            const rowId = attrs.rowId || attrs.id || attrs.key || null;
+            return { context_row: rowId, ...Object.fromEntries(Object.entries(attrs).map(([k, v]) => ['data_' + k, v])) };
+          }
+          // Fall back to data-* attrs on the button itself
+          const own = dataAttrs(el);
+          if (Object.keys(own).length > 0) {
+            return Object.fromEntries(Object.entries(own).map(([k, v]) => ['data_' + k, v]));
+          }
+          return {};
+        };
         document.querySelectorAll('button:not(th button)').forEach((btn, bi) => {
           entities.push(entity(
             btn.id || ('btn-' + bi),
@@ -316,6 +342,7 @@ export class CdpClient {
             {
               label: normalize(btn.textContent || btn.value || btn.getAttribute('aria-label')),
               disabled: isEffectivelyDisabled(btn),
+              ...rowContext(btn),
             }
           ));
         });

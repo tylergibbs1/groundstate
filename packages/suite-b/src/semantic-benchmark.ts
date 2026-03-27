@@ -1481,6 +1481,40 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Stable: row-scoped buttons carry parent row context in extraction",
+    slug: "stable-row-action-context",
+    bucket: "A",
+    mutationType: "none",
+    fixture: "row-actions.html",
+    run: async (cdp, ctx) => {
+      const entities = await cdp.extractEntities();
+      ctx.observe("row-actions", entities);
+
+      const buttons = entities.filter((e) => e._entity === "Button");
+      const editButtons = buttons.filter((e) => e.label === "Edit");
+      const deleteButtons = buttons.filter((e) => e.label === "Delete");
+
+      // Each Edit/Delete button should carry context about which row it belongs to
+      // via data-user attribute or row association
+      const hasRowContext = editButtons.every(
+        (btn) => btn.data_user || btn.row_id || btn.context_row,
+      );
+
+      ctx.postcondition(
+        "Edit buttons carry row context (data-user or row association)",
+        hasRowContext && editButtons.length === 3 && deleteButtons.length === 3,
+        { editCount: 3, deleteCount: 3, hasContext: true },
+        { editCount: editButtons.length, deleteCount: deleteButtons.length, hasContext: hasRowContext },
+      );
+
+      // Hard fail if buttons don't carry row context
+      expect(
+        hasRowContext,
+        `Edit buttons missing row context — cannot disambiguate which row's Edit to click`,
+      );
+    },
+  },
+  {
     name: "Stable: noisy DOM extraction yields correct entity counts without noise pollution",
     slug: "stable-noise-entity-count",
     bucket: "A",
