@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Column Insert (New Column Appears Mid-Table)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 800px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.5rem 1.25rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; margin-top: 1rem; }
+    button:hover { background: #1d4ed8; }
+    .inserted { background: #fef3c7; }
+  </style>
+</head>
+<body>
+  <h1>Column Insert: New Column Appears Between Existing Ones</h1>
+  <p class="subtitle">Tests whether field mapping survives when a new column is inserted, shifting existing cell indices.</p>
+
+  <table id="tasks">
+    <thead><tr id="thead-row"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <button id="insert-btn">Add Priority Column</button>
+
+  <script>
+    const data = [
+      { Task: "Design review",     Owner: "Alice",  Status: "Done",        Priority: "P1" },
+      { Task: "API migration",     Owner: "Bob",    Status: "In Progress", Priority: "P0" },
+      { Task: "Write tests",       Owner: "Carol",  Status: "Blocked",     Priority: "P2" },
+      { Task: "Deploy staging",    Owner: "David",  Status: "Todo",        Priority: "P1" },
+    ];
+
+    let showPriority = false;
+
+    function getColumns() {
+      if (showPriority) return ["Task", "Owner", "Priority", "Status"];
+      return ["Task", "Owner", "Status"];
+    }
+
+    function render() {
+      const cols = getColumns();
+      document.getElementById("thead-row").innerHTML = cols.map(c => `<th>${c}</th>`).join("");
+      document.getElementById("tbody").innerHTML = data.map((row, i) =>
+        `<tr data-row-id="task-${i}">${cols.map(c =>
+          `<td${c === "Priority" && showPriority ? ' class="inserted"' : ''}>${row[c]}</td>`
+        ).join("")}</tr>`
+      ).join("");
+    }
+
+    render();
+
+    document.getElementById("insert-btn").addEventListener("click", () => {
+      showPriority = true;
+      render();
+      document.getElementById("insert-btn").disabled = true;
+      document.getElementById("insert-btn").textContent = "Priority Column Added";
+    });
+  </script>
+</body>
+</html>

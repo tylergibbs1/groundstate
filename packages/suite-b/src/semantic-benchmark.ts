@@ -766,6 +766,39 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: field mapping survives new column insertion",
+    slug: "benign-column-insert",
+    bucket: "B",
+    mutationType: "column_count_changes",
+    fixture: "column-insert.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-column-insert", before);
+      const apiBefore = firstRowByField(rowsFrom(before), "Task", "API migration");
+      expect(apiBefore, "API migration row missing before column insert");
+      expect(apiBefore.Status === "In Progress", `Expected Status=In Progress, got ${apiBefore.Status}`);
+
+      await cdp.click("#insert-btn");
+      ctx.mutate("priority-column-inserted", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-column-insert", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-column-insert", after);
+      const apiAfter = firstRowByField(rowsFrom(after), "Task", "API migration");
+      // Key check: Status should still be "In Progress", not shifted to Priority value
+      const survived = Boolean(apiAfter && apiAfter.Status === "In Progress" && apiAfter.Priority === "P0");
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "API migration row has correct Status and new Priority after column insert",
+        survived,
+        { Status: "In Progress", Priority: "P0" },
+        { Status: apiAfter?.Status ?? null, Priority: apiAfter?.Priority ?? null },
+      );
+    },
+  },
+  {
     name: "Benign churn: row field mapping survives column reorder",
     slug: "benign-column-reorder",
     bucket: "B",
