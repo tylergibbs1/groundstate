@@ -1,6 +1,7 @@
 import { NapiBridge, type NativeSessionLike } from "./bridge.js";
 import { Session } from "./session.js";
 import { ConnectionError } from "./errors.js";
+import { Logger, setDefaultLogger } from "./logger.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 
@@ -20,6 +21,8 @@ export interface RuntimeConfig {
   headless?: boolean;
   /** Default timeout for operations in ms (default: 30000). */
   defaultTimeoutMs?: number;
+  /** Enable structured debug logging to console.debug (default: false). */
+  verbose?: boolean;
 }
 
 export interface StartSessionOptions {
@@ -50,14 +53,21 @@ export interface StartSessionOptions {
  */
 export class Runtime {
   private readonly config: Required<RuntimeConfig>;
+  private readonly logger: Logger;
   private sessions: Set<Session> = new Set();
 
+  /**
+   * @param config - Runtime configuration. All fields are optional.
+   */
   constructor(config: RuntimeConfig = {}) {
     this.config = {
       chromePath: config.chromePath ?? "",
       headless: config.headless ?? true,
       defaultTimeoutMs: config.defaultTimeoutMs ?? 30_000,
+      verbose: config.verbose ?? false,
     };
+    this.logger = new Logger({ verbose: this.config.verbose });
+    setDefaultLogger(this.logger);
   }
 
   /**
@@ -65,6 +75,16 @@ export class Runtime {
    *
    * Connects to Chrome (or launches one), navigates to the URL, builds
    * the initial state graph, and returns a ready-to-use Session.
+   *
+   * @param options - Session configuration including target URL.
+   * @returns A ready-to-use session with an initialized state graph.
+   * @throws {@link ConnectionError} if Chrome cannot be found or the native addon fails to load.
+   *
+   * @example
+   * const session = await runtime.start({
+   *   url: "https://example.com",
+   *   overlay: true,
+   * });
    */
   async start(options: StartSessionOptions): Promise<Session> {
     let wsUrl = options.wsUrl;
@@ -98,8 +118,9 @@ export class Runtime {
     }
 
     const native = await NativeSession.create(JSON.stringify(sessionConfig));
-    const bridge = new NapiBridge(native);
+    const bridge = new NapiBridge(native, this.logger);
     const enableOverlay = (options.overlay ?? false) && !this.config.headless;
+    this.logger.debug("session created", { url: options.url, wsUrl });
     const session = new Session(bridge, {
       onClose: async () => {
         this.sessions.delete(session);
@@ -116,7 +137,9 @@ export class Runtime {
     return session;
   }
 
-  /** Close all active sessions. */
+  /**
+   * Close all active sessions and release their browser resources.
+   */
   async closeAll(): Promise<void> {
     await Promise.all([...this.sessions].map((s) => s.close()));
     this.sessions.clear();

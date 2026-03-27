@@ -10,56 +10,100 @@ import type {
 } from "./postcondition.js";
 import { SessionError } from "./errors.js";
 import { OverlayManager } from "./overlay/index.js";
+import { getDefaultLogger, type Logger } from "./logger.js";
 
+/** Diagnostic information about a single action's validity and targets. */
 export interface ActionDiagnostics {
+  /** The action being inspected. */
   readonly action: Action;
+  /** Number of target entities resolved from the current state graph. */
   readonly targetCount: number;
+  /** The resolved target entities. */
   readonly targetEntities: readonly Entity[];
+  /** Whether the action is likely executable given current state. */
   readonly likelyValid: boolean;
+  /** Human-readable reasons explaining the diagnostic result. */
   readonly reasons: readonly string[];
 }
 
+/** Handle returned by `session.trace.subscribe()`. Call `unsubscribe()` to stop polling. */
 export interface TraceSubscription {
   unsubscribe(): void;
 }
 
+/**
+ * Criteria for finding elements in the browser page.
+ * All fields are optional and combined with AND semantics.
+ */
 export interface LocatorQuery {
+  /** ARIA role to match (e.g. "button", "link"). */
   readonly role?: string;
+  /** Visible text content to match. */
   readonly text?: string;
+  /** ARIA label or associated `<label>` text. */
   readonly label?: string;
+  /** Element title attribute. */
   readonly title?: string;
+  /** Input placeholder text. */
   readonly placeholder?: string;
+  /** CSS selector to scope the search. */
   readonly selector?: string;
+  /** Require exact text match instead of substring (default: false). */
   readonly exact?: boolean;
+  /** Maximum number of matches to return (default: 20). */
   readonly limit?: number;
 }
 
+/** A DOM element matched by a {@link LocatorQuery}. */
 export interface LocatorMatch {
+  /** CSS selector that uniquely identifies this element. */
   readonly selector: string;
+  /** Visible text content of the element. */
   readonly text: string;
+  /** ARIA role, if present. */
   readonly role?: string;
+  /** href attribute for links. */
   readonly href?: string;
+  /** title attribute. */
   readonly title?: string;
+  /** Resolved label text. */
   readonly label?: string;
 }
 
+/**
+ * Low-level session access for direct browser interaction.
+ * Available via `session.raw`. Prefer semantic methods when possible.
+ */
 export interface RawSessionAccess {
+  /** Evaluate JavaScript in the browser page context. */
   evaluate<T = unknown>(script: string): Promise<T>;
+  /** Capture a base64-encoded PNG screenshot. */
   screenshot(): Promise<string>;
+  /** Get the current page URL. */
   currentUrl(): Promise<string>;
+  /** Click an element by CSS selector. */
   clickSelector(selector: string): Promise<void>;
+  /** Type text into an element by CSS selector. */
   typeIntoSelector(selector: string, text: string): Promise<void>;
+  /** Click an element by entity ref string. */
   clickRef(ref: string): Promise<Entity>;
+  /** Type text into an element by entity ref string. */
   typeIntoRef(ref: string, text: string): Promise<Entity>;
+  /** Re-extract all entities from the current page. */
   refresh(): Promise<EntitySet>;
+  /** Get incremental session updates since a cursor position. */
   sessionUpdates(cursor?: SessionUpdateCursor): Promise<SessionUpdatePacket>;
 }
 
+/** Cursor for incremental session updates. */
 export interface SessionUpdateCursor {
+  /** Only return trace events with seq greater than this. */
   readonly traceSeq?: number;
+  /** Include a base64 screenshot in the response. */
   readonly includeScreenshot?: boolean;
 }
 
+/** Incremental update packet from the session. */
 export interface SessionUpdatePacket {
   readonly traceEvents: readonly unknown[];
   readonly entities: readonly Entity[];
@@ -67,11 +111,17 @@ export interface SessionUpdatePacket {
   readonly screenshotBase64?: string;
 }
 
+/** Options for polling-based wait methods. */
 export interface WaitOptions {
+  /** Maximum time to wait in milliseconds (default: 10000). */
   readonly timeoutMs?: number;
+  /** Polling interval in milliseconds (default: 250). */
   readonly pollMs?: number;
 }
 
+/**
+ * A single operation in a batch sequence. Executed in order via `session.batch.run()`.
+ */
 export type BatchOperation =
   | {
       readonly type: "click";
@@ -100,35 +150,58 @@ export type BatchOperation =
       readonly description?: string;
     };
 
+/** Result of a single operation within a batch. */
 export interface BatchResult {
+  /** Zero-based index of the operation in the batch. */
   readonly index: number;
+  /** The operation that was executed. */
   readonly operation: BatchOperation;
+  /** Whether the operation succeeded. */
   readonly ok: boolean;
+  /** Operation-specific detail (e.g. matched element, URL). */
   readonly detail?: unknown;
  }
 
+/** Context passed to custom action derivers. */
 export interface CustomActionContext {
   readonly entities: readonly Entity[];
   readonly session: Session;
 }
 
+/**
+ * User-defined action deriver. Registered via `session.use()` or plugins.
+ * Called during `session.actions.for()` to produce additional actions
+ * beyond what the Rust core derives.
+ */
 export interface CustomActionDeriver {
   readonly name: string;
+  /** Derive actions from the current entity set. */
   derive(context: CustomActionContext): Action[] | Promise<Action[]>;
 }
 
+/** Context passed to recovery policies on execution failure. */
 export interface RecoveryContext {
   readonly session: Session;
   readonly step: ExecutionStep;
   readonly result: ExecutionResult;
 }
 
+/**
+ * A policy that can intercept and recover from failed execution steps.
+ * Registered via `session.recovery.register()` or plugins.
+ */
 export interface RecoveryPolicy {
   readonly name: string;
+  /** Return true if this policy can handle the failure. */
   matches(context: RecoveryContext): boolean | Promise<boolean>;
+  /** Attempt recovery and return a new result. */
   recover(context: RecoveryContext): ExecutionResult | Promise<ExecutionResult>;
 }
 
+/**
+ * A bundle of action derivers, recovery policies, and native registrations.
+ * Install via `session.use(plugin)`.
+ */
 export interface SessionPlugin {
   readonly name: string;
   readonly actionDerivers?: readonly CustomActionDeriver[];
@@ -144,23 +217,38 @@ export interface SessionPlugin {
  */
 export class Session {
   private readonly bridge: Bridge;
+  private readonly logger: Logger;
   private closed = false;
   private readonly onClose?: () => Promise<void> | void;
   private readonly customActionDerivers: CustomActionDeriver[] = [];
   private readonly recoveryPolicies: RecoveryPolicy[] = [];
 
+  /** Namespace for action-related methods (derive, inspect). */
   readonly actions: SessionActions;
+  /** Namespace for execution trace access and subscription. */
   readonly trace: SessionTrace;
+  /** Namespace for recovery policy registration. */
   readonly recovery: SessionRecovery;
+  /** Low-level browser access (JS eval, screenshots, selectors). */
   readonly raw: SessionRaw;
+  /** Native plugin management. */
   readonly plugins: SessionPlugins;
+  /** Semantic element locator (find, click, type by role/text/label). */
   readonly locator: SessionLocator;
+  /** Polling-based waiters (URL, text, condition, load state). */
   readonly wait: SessionWait;
+  /** Sequential batch execution of multiple operations. */
   readonly batch: SessionBatch;
+  /** In-browser state overlay (visual debugging). */
   readonly overlay: SessionOverlay;
 
+  /**
+   * @param bridge - The bridge to the Rust core (typically a NapiBridge).
+   * @param opts - Optional callbacks and overlay toggle.
+   */
   constructor(bridge: Bridge, opts: { onClose?: () => Promise<void> | void; overlay?: boolean } = {}) {
     this.bridge = bridge;
+    this.logger = getDefaultLogger();
     this.onClose = opts.onClose;
     this.actions = new SessionActions(this.bridge, this);
     this.trace = new SessionTrace(this.bridge);
@@ -175,6 +263,10 @@ export class Session {
 
   /**
    * Query entities from the current state graph.
+   *
+   * @param options - Entity type, optional where clause, limit, and ordering.
+   * @returns An {@link EntitySet} of matching entities.
+   * @throws {@link SessionError} if the session is closed.
    *
    * @example
    * const rows = await session.query({
@@ -205,7 +297,19 @@ export class Session {
 
   /**
    * Execute a single step. Dispatches the action, waits for the page to settle,
-   * and verifies postconditions.
+   * and verifies postconditions. On failure, registered recovery policies are
+   * tried in order.
+   *
+   * @param step - The step to execute, including the action and optional params.
+   * @returns The execution result with status, postcondition checks, and timing.
+   * @throws {@link SessionError} if the session is closed.
+   *
+   * @example
+   * const result = await session.execute({
+   *   id: "step-1",
+   *   action: deleteAction,
+   *   description: "Delete the first invoice row",
+   * });
    */
   async execute(step: ExecutionStep): Promise<ExecutionResult> {
     this.ensureOpen();
@@ -229,6 +333,20 @@ export class Session {
 
   /**
    * Plan a sequence of steps to achieve a goal.
+   *
+   * First attempts native planning via the bridge. If the bridge returns
+   * no steps (e.g. not yet implemented), falls back to a heuristic planner
+   * that ranks available actions by keyword overlap with the goal.
+   *
+   * @param options - Goal description and optional maximum step count.
+   * @returns An execution plan with ranked steps and a confidence score.
+   * @throws {@link SessionError} if the session is closed.
+   *
+   * @example
+   * const plan = await session.plan({ goal: "delete all unpaid invoices" });
+   * for (const step of plan.steps) {
+   *   await session.execute(step);
+   * }
    */
   async plan(options: {
     goal: string;
@@ -242,7 +360,10 @@ export class Session {
     return this.buildFallbackPlan(options);
   }
 
-  /** Close the session and release browser resources. */
+  /**
+   * Close the session and release browser resources.
+   * Safe to call multiple times -- subsequent calls are no-ops.
+   */
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
@@ -257,6 +378,13 @@ export class Session {
     }
   }
 
+  /**
+   * Install a plugin that provides action derivers, recovery policies,
+   * or native registrations.
+   *
+   * @param plugin - The plugin to install.
+   * @returns `this` for chaining.
+   */
   use(plugin: SessionPlugin): this {
     plugin.actionDerivers?.forEach((deriver) =>
       this.customActionDerivers.push(deriver),
@@ -270,6 +398,7 @@ export class Session {
     return this;
   }
 
+  /** @internal -- used by SessionActions to include custom derivers. */
   getCustomActionDerivers(): readonly CustomActionDeriver[] {
     return this.customActionDerivers;
   }
@@ -319,12 +448,23 @@ export class Session {
  * Namespaced action methods, accessed via `session.actions`.
  */
 class SessionActions {
+  private readonly logger: Logger;
+
   constructor(
     private readonly bridge: Bridge,
     private readonly session: Session,
-  ) {}
+  ) {
+    this.logger = getDefaultLogger();
+  }
 
-  /** Get available actions for a set of entities. */
+  /**
+   * Derive available actions for a set of entities.
+   *
+   * Combines actions from the Rust core with any registered custom derivers.
+   *
+   * @param entities - Entities to compute actions for (EntitySet or array).
+   * @returns Deduplicated set of available actions.
+   */
   async for<T extends Entity>(
     entities: EntitySet<T> | Entity[],
   ): Promise<ActionSet> {
@@ -339,9 +479,17 @@ class SessionActions {
       ),
     );
 
-    return new ActionSet(dedupeActions([...actions, ...custom.flat()]));
+    const allActions = dedupeActions([...actions, ...custom.flat()]);
+    this.logger.actions(baseEntities.length, allActions.length, custom.flat().length);
+    return new ActionSet(allActions);
   }
 
+  /**
+   * Inspect an action to determine its validity and resolve its targets.
+   *
+   * @param action - The action to inspect.
+   * @returns Diagnostic information including resolved targets and validity.
+   */
   async inspect(action: Action): Promise<ActionDiagnostics> {
     const entities = await this.findTargets(action.targets);
     const reasons: string[] = [];
@@ -383,6 +531,11 @@ class SessionActions {
 class SessionRecovery {
   constructor(private readonly session: Session) {}
 
+  /**
+   * Register a recovery policy for failed execution steps.
+   *
+   * @param policy - The recovery policy to register.
+   */
   register(policy: RecoveryPolicy): void {
     this.session.use({ name: `recovery:${policy.name}`, recoveryPolicies: [policy] });
   }
@@ -394,6 +547,12 @@ class SessionPlugins {
     private readonly _session: Session,
   ) {}
 
+  /**
+   * Register a native (Rust-side) plugin.
+   *
+   * @param plugin - Plugin registration payload forwarded to the Rust core.
+   * @throws {@link SessionError} if the bridge does not support native plugins.
+   */
   async registerNative(plugin: unknown): Promise<void> {
     if (!this.bridge.registerPlugin) {
       throw new SessionError("This session does not support native plugin registration.");
@@ -401,6 +560,7 @@ class SessionPlugins {
     await this.bridge.registerPlugin(plugin);
   }
 
+  /** List all registered native plugins. */
   async listNative(): Promise<unknown[]> {
     if (!this.bridge.listPlugins) return [];
     return this.bridge.listPlugins();
@@ -419,6 +579,13 @@ class SessionTrace {
     return new TraceView(data);
   }
 
+  /**
+   * Subscribe to trace updates via polling.
+   *
+   * @param onChange - Callback invoked when new trace entries appear.
+   * @param options - Polling interval (default: 500ms).
+   * @returns A subscription handle. Call `.unsubscribe()` to stop.
+   */
   subscribe(
     onChange: (trace: TraceView) => void | Promise<void>,
     options: { intervalMs?: number } = {},
@@ -545,19 +712,34 @@ class SessionRaw implements RawSessionAccess {
   }
 }
 
+/** Semantic element locator. Find, click, and type by role, text, label, etc. */
 class SessionLocator {
   constructor(private readonly raw: RawSessionAccess) {}
 
+  /**
+   * Find all elements matching the locator query.
+   *
+   * @param query - Locator criteria (all fields combined with AND).
+   * @returns Matched elements with selectors and metadata.
+   */
   async find(query: LocatorQuery): Promise<readonly LocatorMatch[]> {
     const script = buildLocatorScript(query);
     return this.raw.evaluate<LocatorMatch[]>(script);
   }
 
+  /** Find the first element matching the query, or undefined. */
   async first(query: LocatorQuery): Promise<LocatorMatch | undefined> {
     const matches = await this.find({ ...query, limit: 1 });
     return matches[0];
   }
 
+  /**
+   * Find and click the first matching element.
+   *
+   * @param query - Locator criteria.
+   * @returns The matched element.
+   * @throws {@link SessionError} if no element matches.
+   */
   async click(query: LocatorQuery): Promise<LocatorMatch> {
     const match = await this.first(query);
     if (!match) {
@@ -567,6 +749,14 @@ class SessionLocator {
     return match;
   }
 
+  /**
+   * Find the first matching element and type text into it.
+   *
+   * @param query - Locator criteria.
+   * @param text - Text to type.
+   * @returns The matched element.
+   * @throws {@link SessionError} if no element matches.
+   */
   async type(query: LocatorQuery, text: string): Promise<LocatorMatch> {
     const match = await this.first(query);
     if (!match) {
@@ -577,12 +767,21 @@ class SessionLocator {
   }
 }
 
+/** Polling-based waiters for URL changes, text appearance, conditions, and load state. */
 class SessionWait {
   constructor(
     private readonly raw: RawSessionAccess,
     private readonly locator: SessionLocator,
   ) {}
 
+  /**
+   * Wait for the page URL to match a pattern.
+   *
+   * @param pattern - Substring or RegExp to match against the URL.
+   * @param options - Timeout and polling interval.
+   * @returns The matching URL.
+   * @throws {@link SessionError} on timeout.
+   */
   async forUrl(pattern: string | RegExp, options: WaitOptions = {}): Promise<string> {
     const timeoutMs = options.timeoutMs ?? 10_000;
     const pollMs = options.pollMs ?? 250;
@@ -602,6 +801,15 @@ class SessionWait {
     );
   }
 
+  /**
+   * Wait for text to appear on the page.
+   *
+   * @param text - Text content to wait for.
+   * @param locator - Optional locator to scope the search.
+   * @param options - Timeout and polling interval.
+   * @returns The matching elements.
+   * @throws {@link SessionError} on timeout.
+   */
   async forText(
     text: string,
     locator: LocatorQuery = {},
@@ -621,6 +829,14 @@ class SessionWait {
     );
   }
 
+  /**
+   * Wait for a custom JavaScript condition to become truthy.
+   *
+   * @param script - JavaScript to evaluate. Must return a truthy value when the condition is met.
+   * @param options - Timeout and polling interval.
+   * @returns The truthy value returned by the script.
+   * @throws {@link SessionError} on timeout.
+   */
   async forCondition<T = unknown>(
     script: string,
     options: WaitOptions = {},
@@ -639,6 +855,14 @@ class SessionWait {
     );
   }
 
+  /**
+   * Wait for the page entity state to stabilize (two consecutive refreshes
+   * return the same entity set).
+   *
+   * @param options - Timeout and polling interval.
+   * @returns The stable entity set.
+   * @throws {@link SessionError} on timeout.
+   */
   async forLoadState(options: WaitOptions = {}): Promise<EntitySet> {
     const timeoutMs = options.timeoutMs ?? 10_000;
     const pollMs = options.pollMs ?? 250;
@@ -661,6 +885,7 @@ class SessionWait {
   }
 }
 
+/** Execute a sequence of batch operations in order. */
 class SessionBatch {
   constructor(
     private readonly raw: RawSessionAccess,
@@ -668,6 +893,12 @@ class SessionBatch {
     private readonly wait: SessionWait,
   ) {}
 
+  /**
+   * Run a sequence of operations (click, type, wait, refresh) in order.
+   *
+   * @param operations - Ordered list of operations to execute.
+   * @returns Results for each operation, in order.
+   */
   async run(operations: readonly BatchOperation[]): Promise<readonly BatchResult[]> {
     const results: BatchResult[] = [];
 

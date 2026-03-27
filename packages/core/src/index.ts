@@ -75,5 +75,9 @@ export type {
   OverlayTraceEntry,
 } from "./overlay/index.js";
 
+// Logging
+export { Logger } from "./logger.js";
+export type { LoggerConfig } from "./logger.js";
+
 // Bridge (for advanced usage / testing)
 export { NapiBridge, type Bridge, type NativeSessionLike } from "./bridge.js";

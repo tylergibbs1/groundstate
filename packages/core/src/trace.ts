@@ -86,7 +86,12 @@ export interface SnapshotEntry extends TraceEntryBase {
 }
 
 /**
- * Read-only view into a session trace with convenience methods.
+ * Read-only view into a session trace with convenience query methods.
+ *
+ * @example
+ * const trace = await session.trace.current();
+ * const summary = trace.summary();
+ * console.log(`${summary.executionsSucceeded}/${summary.executionsTotal} succeeded`);
  */
 export class TraceView {
   private readonly trace: Trace;
@@ -95,50 +100,60 @@ export class TraceView {
     this.trace = trace;
   }
 
+  /** The session ID this trace belongs to. */
   get sessionId(): string {
     return this.trace.sessionId;
   }
 
+  /** All trace entries in chronological order. */
   get entries(): readonly TraceEntry[] {
     return this.trace.entries;
   }
 
+  /** Total session duration in milliseconds. */
   get durationMs(): number {
     return this.trace.durationMs;
   }
 
+  /** Filter to execution entries only. */
   executions(): ExecutionEntry[] {
     return this.trace.entries.filter(
       (e): e is ExecutionEntry => e.type === "execution",
     );
   }
 
+  /** Filter to error entries only. */
   errors(): ErrorEntry[] {
     return this.trace.entries.filter(
       (e): e is ErrorEntry => e.type === "error",
     );
   }
 
+  /** Filter to query entries only. */
   queries(): QueryEntry[] {
     return this.trace.entries.filter(
       (e): e is QueryEntry => e.type === "query",
     );
   }
 
+  /** Filter to snapshot entries only. */
   snapshots(): SnapshotEntry[] {
     return this.trace.entries.filter(
       (e): e is SnapshotEntry => e.type === "snapshot",
     );
   }
 
+  /** Whether any error entries exist in the trace. */
   hasErrors(): boolean {
     return this.errors().length > 0;
   }
 
+  /** Collect all postcondition results across all execution entries. */
   postconditionResults(): PostconditionResult[] {
     return this.executions().flatMap((e) => e.result.postconditions);
   }
 
+  /** Compute an aggregate summary of the trace. */
   summary(): TraceSummary {
     const execs = this.executions();
     return {

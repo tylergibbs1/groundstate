@@ -7,6 +7,7 @@ import type {
 } from "./postcondition.js";
 import type { QueryRequest } from "./query.js";
 import type { Trace } from "./trace.js";
+import { type Logger, getDefaultLogger } from "./logger.js";
 
 /**
  * Interface for the napi bridge. This is the seam between the TypeScript
@@ -39,76 +40,164 @@ export interface Bridge {
  * and deserialization happens here.
  */
 export class NapiBridge implements Bridge {
-  // Using `any` for the native session type since the generated .d.ts
-  // isn't available until after the native build.
   private native: NativeSessionLike;
+  private readonly logger: Logger;
 
-  constructor(native: NativeSessionLike) {
+  /**
+   * @param native - The underlying napi-rs native session handle.
+   * @param logger - Optional logger instance. Falls back to the default SDK logger.
+   */
+  constructor(native: NativeSessionLike, logger?: Logger) {
     this.native = native;
+    this.logger = logger ?? getDefaultLogger();
   }
 
+  /**
+   * Query entities from the Rust state graph.
+   *
+   * @param request - Wire-format query (entity type, optional where/limit/orderBy).
+   * @returns Matching entities deserialized from JSON.
+   */
   async query(request: QueryRequest): Promise<Entity[]> {
+    const start = performance.now();
     const json = await this.native.query(JSON.stringify(request));
-    return JSON.parse(json) as Entity[];
+    const entities = JSON.parse(json) as Entity[];
+    this.logger.bridgeOp("query", performance.now() - start, {
+      entity: request.entity,
+      resultCount: entities.length,
+    });
+    return entities;
   }
 
+  /**
+   * Derive available actions for a set of entity IDs.
+   *
+   * @param entityIds - IDs of entities to compute actions for.
+   * @returns Actions the Rust core identified as available.
+   */
   async actionsFor(entityIds: string[]): Promise<Action[]> {
+    const start = performance.now();
     const json = await this.native.actionsFor(JSON.stringify(entityIds));
-    return JSON.parse(json) as Action[];
+    const actions = JSON.parse(json) as Action[];
+    this.logger.bridgeOp("actionsFor", performance.now() - start, {
+      inputCount: entityIds.length,
+      actionCount: actions.length,
+    });
+    return actions;
   }
 
+  /**
+   * Execute a single step via the Rust core.
+   *
+   * @param step - The execution step including action and optional params.
+   * @returns Result with status, postcondition checks, and timing.
+   */
   async execute(step: ExecutionStep): Promise<ExecutionResult> {
+    const start = performance.now();
     const json = await this.native.execute(JSON.stringify(step));
-    return JSON.parse(json) as ExecutionResult;
+    const result = JSON.parse(json) as ExecutionResult;
+    this.logger.bridgeOp("execute", performance.now() - start, {
+      stepId: step.id,
+      status: result.status,
+    });
+    return result;
   }
 
+  /**
+   * Plan a sequence of steps to achieve a goal.
+   *
+   * Native planning is not yet implemented in the Rust core. This method
+   * returns an empty plan and logs a warning. The Session layer falls back
+   * to a heuristic planner when the bridge returns no steps.
+   *
+   * @param options - Goal description and optional step limit.
+   * @returns An empty plan with confidence 0.
+   */
   async plan(
-    _options: { goal: string; maxSteps?: number },
+    options: { goal: string; maxSteps?: number },
   ): Promise<ExecutionPlan> {
-    // Planning is not yet implemented in the Rust core.
-    // For the MVP, return a stub plan.
+    this.logger.warn(
+      "NapiBridge.plan() is not implemented in the Rust core. " +
+      "Returning empty plan -- the Session will use its fallback heuristic planner.",
+      { goal: options.goal },
+    );
     return {
-      goal: _options.goal,
+      goal: options.goal,
       steps: [],
       estimatedDurationMs: 0,
       confidence: 0,
     };
   }
 
+  /**
+   * Retrieve the full execution trace for this session.
+   *
+   * @returns The complete trace including all entries since session start.
+   */
   async getTrace(): Promise<Trace> {
+    const start = performance.now();
     const json = await this.native.getTrace();
-    return JSON.parse(json) as Trace;
+    const trace = JSON.parse(json) as Trace;
+    this.logger.bridgeOp("getTrace", performance.now() - start, {
+      entryCount: trace.entries.length,
+    });
+    return trace;
   }
 
+  /** Register a native plugin with the Rust core. */
   async registerPlugin(plugin: unknown): Promise<void> {
     if (!this.native.registerPlugin) return;
     await this.native.registerPlugin(JSON.stringify(plugin));
   }
 
+  /** List registered native plugins. */
   async listPlugins(): Promise<unknown[]> {
     if (!this.native.listPlugins) return [];
     const json = await this.native.listPlugins();
     return JSON.parse(json) as unknown[];
   }
 
+  /**
+   * Get trace entries added after the given sequence number.
+   *
+   * @param sinceSeq - Only return entries with seq greater than this value.
+   */
   async getTraceSince(sinceSeq: number): Promise<unknown[]> {
     if (!this.native.getTraceSince) return [];
     const json = await this.native.getTraceSince(sinceSeq);
     return JSON.parse(json) as unknown[];
   }
 
+  /** Re-extract entities from the current page state. */
   async refresh(): Promise<Entity[]> {
     if (!this.native.refresh) return [];
+    const start = performance.now();
     const json = await this.native.refresh();
-    return JSON.parse(json) as Entity[];
+    const entities = JSON.parse(json) as Entity[];
+    this.logger.bridgeOp("refresh", performance.now() - start, {
+      entityCount: entities.length,
+    });
+    return entities;
   }
 
+  /**
+   * Evaluate arbitrary JavaScript in the browser page.
+   *
+   * @param script - JavaScript source to evaluate.
+   * @returns The deserialized return value.
+   */
   async evaluateJs(script: string): Promise<unknown> {
     if (!this.native.evaluateJs) return null;
     const json = await this.native.evaluateJs(script);
     return JSON.parse(json) as unknown;
   }
 
+  /**
+   * Capture a screenshot of the current page.
+   *
+   * @returns Base64-encoded PNG image data.
+   * @throws {Error} if the native session does not support screenshots.
+   */
   async screenshot(): Promise<string> {
     if (!this.native.screenshot) {
       throw new Error("Native session does not support screenshots.");
@@ -116,11 +205,18 @@ export class NapiBridge implements Bridge {
     return this.native.screenshot();
   }
 
+  /** Get the current page URL. */
   async currentUrl(): Promise<string> {
     if (!this.native.currentUrl) return "";
     return this.native.currentUrl();
   }
 
+  /**
+   * Click an element by CSS selector.
+   *
+   * @param selector - CSS selector targeting the element.
+   * @throws {Error} if the native session does not support raw selector clicks.
+   */
   async clickSelector(selector: string): Promise<void> {
     if (!this.native.clickSelector) {
       throw new Error("Native session does not support raw selector clicks.");
@@ -128,6 +224,13 @@ export class NapiBridge implements Bridge {
     await this.native.clickSelector(selector);
   }
 
+  /**
+   * Type text into an element identified by CSS selector.
+   *
+   * @param selector - CSS selector targeting the input element.
+   * @param text - Text to type.
+   * @throws {Error} if the native session does not support raw selector typing.
+   */
   async typeIntoSelector(selector: string, text: string): Promise<void> {
     if (!this.native.typeIntoSelector) {
       throw new Error("Native session does not support raw selector typing.");
@@ -135,7 +238,9 @@ export class NapiBridge implements Bridge {
     await this.native.typeIntoSelector(selector, text);
   }
 
+  /** Close the native session and release resources. */
   async close(): Promise<void> {
+    this.logger.debug("bridge closed");
     await this.native.close();
   }
 }
