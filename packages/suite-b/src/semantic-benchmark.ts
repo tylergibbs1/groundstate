@@ -1081,6 +1081,49 @@ const CASES: BenchmarkCase[] = [
     },
   },
   {
+    name: "Benign churn: concurrent mutations (update + insert) in same tick",
+    slug: "benign-concurrent-mutation",
+    bucket: "B",
+    mutationType: "concurrent_dom_changes",
+    fixture: "concurrent-mutation.html",
+    run: async (cdp, ctx) => {
+      const before = await cdp.extractEntities();
+      ctx.observe("before-concurrent", before);
+      const hubBefore = firstRowByField(rowsFrom(before), "SKU", "SKU-002");
+      expect(hubBefore, "SKU-002 row missing");
+      expect(String(hubBefore.Stock) === "12", `Expected Stock=12, got ${hubBefore.Stock}`);
+
+      await cdp.click("#mutate-btn");
+      ctx.mutate("concurrent-update-and-insert", true);
+      await ctx.pause();
+      await captureStageScreenshot(cdp, ctx, ctx.artifactDir, "benign-concurrent-mutation", "after-mutation");
+
+      const after = await cdp.extractEntities();
+      ctx.observe("after-concurrent", after);
+      const hubAfter = firstRowByField(rowsFrom(after), "SKU", "SKU-002");
+      const standAfter = firstRowByField(rowsFrom(after), "SKU", "SKU-003");
+      const newRow = firstRowByField(rowsFrom(after), "SKU", "SKU-004");
+
+      const survived = Boolean(
+        hubAfter && String(hubAfter.Stock) === "8" &&
+        standAfter && standAfter.Price === "$29.99" &&
+        newRow && newRow.Product === "Webcam HD"
+      );
+      if (survived) ctx.planSurvived();
+
+      ctx.postcondition(
+        "all concurrent mutations visible: stock update, price update, and new row",
+        survived,
+        { hubStock: "8", standPrice: "$29.99", newProduct: "Webcam HD" },
+        {
+          hubStock: hubAfter?.Stock ?? null,
+          standPrice: standAfter?.Price ?? null,
+          newProduct: newRow?.Product ?? null,
+        },
+      );
+    },
+  },
+  {
     name: "Real disruption: removed row detected as stale target, recovered via undo",
     slug: "disruption-row-removal-recovery",
     bucket: "C",

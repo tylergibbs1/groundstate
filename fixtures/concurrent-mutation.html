@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture: Concurrent Mutations</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f8f9fa; color: #1a1a2e; padding: 2rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 1.5rem; }
+    table { width: 100%; max-width: 700px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    td { padding: 0.75rem 1rem; border-top: 1px solid #e2e8f0; font-size: 0.875rem; }
+    tr:hover td { background: #f8fafc; }
+    button { background: #2563eb; color: #fff; border: none; padding: 0.5rem 1.25rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; margin-top: 1rem; }
+    button:hover { background: #1d4ed8; }
+    .changed { background: #ecfdf5; }
+    .new-row { background: #eff6ff; }
+  </style>
+</head>
+<body>
+  <h1>Concurrent Mutations: Multiple Changes at Once</h1>
+  <p class="subtitle">Tests extraction consistency when multiple DOM changes happen in the same tick — a row is added while existing row content changes.</p>
+
+  <table id="inventory">
+    <thead>
+      <tr><th>SKU</th><th>Product</th><th>Stock</th><th>Price</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <button id="mutate-btn">Simulate Live Update</button>
+
+  <script>
+    let items = [
+      { sku: "SKU-001", product: "Wireless Keyboard", stock: 45, price: "$79.99" },
+      { sku: "SKU-002", product: "USB-C Hub",         stock: 12, price: "$49.99" },
+      { sku: "SKU-003", product: "Monitor Stand",     stock: 28, price: "$34.99" },
+    ];
+
+    const tbody = document.getElementById("tbody");
+
+    function render(changedSkus = [], newSkus = []) {
+      tbody.innerHTML = items.map(item => {
+        const cls = newSkus.includes(item.sku) ? ' class="new-row"' :
+                    changedSkus.includes(item.sku) ? ' class="changed"' : '';
+        return `<tr data-row-id="${item.sku}"${cls}>
+          <td>${item.sku}</td>
+          <td>${item.product}</td>
+          <td>${item.stock}</td>
+          <td>${item.price}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    render();
+
+    document.getElementById("mutate-btn").addEventListener("click", () => {
+      // Concurrent mutations in same tick:
+      // 1. Update stock on existing row
+      items[1].stock = 8;
+      // 2. Update price on another existing row
+      items[2].price = "$29.99";
+      // 3. Add a new row
+      items.push({ sku: "SKU-004", product: "Webcam HD", stock: 50, price: "$64.99" });
+
+      render(["SKU-002", "SKU-003"], ["SKU-004"]);
+      document.getElementById("mutate-btn").disabled = true;
+      document.getElementById("mutate-btn").textContent = "Updated";
+    });
+  </script>
+</body>
+</html>
