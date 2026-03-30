@@ -1,10 +1,7 @@
 [package]
-name = "gs-napi"
+name = "gs-reactive"
 version.workspace = true
 edition.workspace = true
-
-[lib]
-crate-type = ["cdylib"]
 
 [dependencies]
 gs-types = { path = "../gs-types" }
@@ -12,18 +9,8 @@ gs-graph = { path = "../gs-graph" }
 gs-transport = { path = "../gs-transport" }
 gs-observe = { path = "../gs-observe" }
 gs-extract = { path = "../gs-extract" }
-gs-validate = { path = "../gs-validate" }
 gs-execute = { path = "../gs-execute" }
-gs-reactive = { path = "../gs-reactive" }
-gs-trace = { path = "../gs-trace" }
-napi = { version = "2", features = ["async", "napi9", "serde-json"] }
-napi-derive = "2"
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-uuid.workspace = true
 tracing.workspace = true
-base64 = "0.22"
-
-[build-dependencies]
-napi-build = "2"

@@ -112,6 +112,7 @@ mod tests {
             },
             params: None,
             description: "click the submit button".into(),
+            expected_graph_version: 0,
         };
 
         let result = ExecutionResult {

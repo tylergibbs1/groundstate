@@ -79,5 +79,8 @@ export type {
 export { Logger } from "./logger.js";
 export type { LoggerConfig } from "./logger.js";
 
+// Reactive types
+export type { GraphDiff, EntitySnapshot, Unsubscribe } from "./reactive.js";
+
 // Bridge (for advanced usage / testing)
 export { NapiBridge, type Bridge, type NativeSessionLike } from "./bridge.js";

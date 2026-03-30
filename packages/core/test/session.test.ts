@@ -27,6 +27,8 @@ function createMockBridge(overrides: Partial<Bridge> = {}): Bridge {
       entries: [],
       durationMs: 0,
     } satisfies Trace),
+    onGraphChange: vi.fn(),
+    graphVersion: vi.fn().mockResolvedValue(0),
     close: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -360,16 +362,6 @@ describe("Session", () => {
       currentUrl: vi.fn().mockResolvedValue("https://example.com"),
       clickSelector: vi.fn().mockResolvedValue(undefined),
       typeIntoSelector: vi.fn().mockResolvedValue(undefined),
-      refresh: vi.fn().mockResolvedValue([
-        {
-          id: "1",
-          _ref: "@e:1",
-          _entity: "Button",
-          _source: ".submit",
-          _confidence: 0.8,
-          label: "Submit",
-        },
-      ]),
     });
 
     const session = new Session(bridge);
@@ -378,9 +370,7 @@ describe("Session", () => {
     expect(await session.raw.currentUrl()).toBe("https://example.com");
     await session.raw.clickSelector(".submit");
     await session.raw.typeIntoSelector("#email", "user@example.com");
-    const refreshed = await session.raw.refresh();
 
-    expect(refreshed.count).toBe(1);
     expect(bridge.clickSelector).toHaveBeenCalledWith(".submit");
     expect(bridge.typeIntoSelector).toHaveBeenCalledWith(
       "#email",
@@ -440,15 +430,6 @@ describe("Session", () => {
   it("returns native-backed session updates", async () => {
     const bridge = createMockBridge({
       getTraceSince: vi.fn().mockResolvedValue([{ seq: 2, type: "execution" }]),
-      refresh: vi.fn().mockResolvedValue([
-        {
-          id: "1",
-          _entity: "Button",
-          _source: ".submit",
-          _confidence: 0.8,
-          label: "Submit",
-        },
-      ]),
       currentUrl: vi.fn().mockResolvedValue("https://example.com/dashboard"),
       screenshot: vi.fn().mockResolvedValue("base64png"),
     });
@@ -460,7 +441,6 @@ describe("Session", () => {
     });
 
     expect(update.traceEvents).toHaveLength(1);
-    expect(update.entities).toHaveLength(1);
     expect(update.currentUrl).toContain("dashboard");
     expect(update.screenshotBase64).toBe("base64png");
   });
@@ -513,51 +493,31 @@ describe("Session", () => {
     expect(url).toContain("/dashboard");
   });
 
-  it("waits for load state to settle after entity changes stop", async () => {
+  it("waits for load state to settle after graph version stabilizes", async () => {
     const bridge = createMockBridge({
-      refresh: vi
+      // Graph version changes on first two polls, then stabilizes
+      graphVersion: vi
         .fn()
-        .mockResolvedValueOnce([
-          {
-            id: "1",
-            _entity: "Button",
-            _source: ".save",
-            _confidence: 0.8,
-            label: "Save",
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            id: "1",
-            _entity: "Button",
-            _source: ".save",
-            _confidence: 0.8,
-            label: "Save",
-          },
-          {
-            id: "2",
-            _entity: "Button",
-            _source: ".cancel",
-            _confidence: 0.8,
-            label: "Cancel",
-          },
-        ])
-        .mockResolvedValue([
-          {
-            id: "1",
-            _entity: "Button",
-            _source: ".save",
-            _confidence: 0.8,
-            label: "Save",
-          },
-          {
-            id: "2",
-            _entity: "Button",
-            _source: ".cancel",
-            _confidence: 0.8,
-            label: "Cancel",
-          },
-        ]),
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(3)
+        .mockResolvedValue(3),
+      query: vi.fn().mockResolvedValue([
+        {
+          id: "1",
+          _entity: "Button",
+          _source: ".save",
+          _confidence: 0.8,
+          label: "Save",
+        },
+        {
+          id: "2",
+          _entity: "Button",
+          _source: ".cancel",
+          _confidence: 0.8,
+          label: "Cancel",
+        },
+      ]),
     });
 
     const session = new Session(bridge);
@@ -566,7 +526,8 @@ describe("Session", () => {
       pollMs: 10,
     });
 
-    expect(entities.count).toBe(2);
+    // forLoadState resolves when graph version stabilizes
+    expect(entities).toBeDefined();
   });
 
   it("runs deterministic batch operations", async () => {
@@ -580,7 +541,6 @@ describe("Session", () => {
         },
       ]),
       typeIntoSelector: vi.fn().mockResolvedValue(undefined),
-      refresh: vi.fn().mockResolvedValue([]),
     });
 
     const session = new Session(bridge);

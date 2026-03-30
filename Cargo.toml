@@ -9,6 +9,7 @@ members = [
     "crates/gs-extract",
     "crates/gs-validate",
     "crates/gs-execute",
+    "crates/gs-reactive",
     "crates/gs-napi",
     "crates/gs-demo",
 ]

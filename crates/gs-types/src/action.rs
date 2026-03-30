@@ -62,6 +62,10 @@ pub struct ExecutionStep {
     pub action: Action,
     pub params: Option<serde_json::Value>,
     pub description: String,
+    /// Graph version the caller observed when planning this step.
+    /// Execution fails with STALE_STATE if the graph has since changed.
+    #[serde(default)]
+    pub expected_graph_version: u64,
 }
 
 /// Outcome of executing a single step.

@@ -1,13 +1,20 @@
+pub mod subscription;
+
 #[cfg(test)]
 mod invalidation_tests;
 #[cfg(test)]
 mod reconciliation_tests;
+#[cfg(test)]
+mod subscription_tests;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc;
 
 use gs_types::{EntityId, EntityKind, EntityStatus, Relation, SemanticEntity, StableKey};
 use petgraph::Direction;
 use petgraph::stable_graph::StableGraph;
+
+pub use subscription::{EntitySnapshot, GraphDiff, SubscriptionId};
 
 /// The authoritative state graph for a browser session.
 ///
@@ -17,6 +24,8 @@ pub struct StateGraph {
     graph: StableGraph<SemanticEntity, Relation>,
     stable_index: HashMap<StableKey, EntityId>,
     version: u64,
+    subscriptions: Vec<subscription::Subscription>,
+    next_sub_id: u64,
 }
 
 impl Default for StateGraph {
@@ -31,6 +40,8 @@ impl StateGraph {
             graph: StableGraph::new(),
             stable_index: HashMap::new(),
             version: 0,
+            subscriptions: Vec::new(),
+            next_sub_id: 0,
         }
     }
 
@@ -51,12 +62,105 @@ impl StateGraph {
             .count()
     }
 
+    /// Subscribe to graph changes, optionally filtered by entity kind.
+    /// Returns a subscription handle and a receiver for diffs.
+    pub fn subscribe(
+        &mut self,
+        kind: Option<EntityKind>,
+    ) -> (SubscriptionId, mpsc::Receiver<GraphDiff>) {
+        let id = SubscriptionId(self.next_sub_id);
+        self.next_sub_id += 1;
+        let (tx, rx) = mpsc::channel();
+        self.subscriptions.push(subscription::Subscription {
+            id,
+            kind_filter: kind,
+            tx,
+        });
+        (id, rx)
+    }
+
+    /// Remove a subscription.
+    pub fn unsubscribe(&mut self, id: SubscriptionId) {
+        self.subscriptions.retain(|s| s.id != id);
+    }
+
+    /// Notify matching subscribers of an upsert.
+    fn notify_upsert(&mut self, entity_id: EntityId) {
+        let entity = match self.graph.node_weight(entity_id.to_node_index()) {
+            Some(e) => e,
+            None => return,
+        };
+        let snapshot = EntitySnapshot::from(entity);
+        let kind = entity.kind.clone();
+        let version = self.version;
+
+        self.subscriptions.retain(|sub| {
+            if sub.matches(&kind) {
+                sub.send(GraphDiff {
+                    graph_version: version,
+                    upserted: vec![snapshot.clone()],
+                    invalidated: vec![],
+                    removed: vec![],
+                })
+            } else {
+                // Keep non-matching subscriptions alive
+                true
+            }
+        });
+    }
+
+    /// Notify matching subscribers of invalidations.
+    fn notify_invalidated(&mut self, invalidated: &[EntityId]) {
+        if invalidated.is_empty() {
+            return;
+        }
+        // Collect kinds for the invalidated entities
+        let kinds: Vec<EntityKind> = invalidated
+            .iter()
+            .filter_map(|id| self.graph.node_weight(id.to_node_index()))
+            .map(|e| e.kind.clone())
+            .collect();
+
+        let version = self.version;
+        let invalidated_ids = invalidated.to_vec();
+
+        self.subscriptions.retain(|sub| {
+            if kinds.iter().any(|k| sub.matches(k)) {
+                sub.send(GraphDiff {
+                    graph_version: version,
+                    upserted: vec![],
+                    invalidated: invalidated_ids.clone(),
+                    removed: vec![],
+                })
+            } else {
+                true
+            }
+        });
+    }
+
+    /// Notify matching subscribers of a removal.
+    fn notify_removed(&mut self, entity_id: EntityId, kind: &EntityKind) {
+        let version = self.version;
+        self.subscriptions.retain(|sub| {
+            if sub.matches(kind) {
+                sub.send(GraphDiff {
+                    graph_version: version,
+                    upserted: vec![],
+                    invalidated: vec![],
+                    removed: vec![entity_id],
+                })
+            } else {
+                true
+            }
+        });
+    }
+
     /// Insert a new entity or update an existing one with the same stable key.
     /// Returns the entity ID (stable across calls with the same key).
     pub fn upsert(&mut self, entity: SemanticEntity) -> EntityId {
         self.version += 1;
 
-        if let Some(&existing_id) = self.stable_index.get(&entity.stable_key) {
+        let entity_id = if let Some(&existing_id) = self.stable_index.get(&entity.stable_key) {
             let idx = existing_id.to_node_index();
             if let Some(existing) = self.graph.node_weight_mut(idx) {
                 existing.properties = entity.properties;
@@ -75,15 +179,22 @@ impl StateGraph {
             }
             self.stable_index.insert(stable_key, entity_id);
             entity_id
-        }
+        };
+
+        self.notify_upsert(entity_id);
+        entity_id
     }
 
     /// Mark an entity as removed. Does not delete the graph node (preserves indices).
     pub fn remove(&mut self, entity_id: EntityId) {
         let idx = entity_id.to_node_index();
+        let kind = self.graph.node_weight(idx).map(|e| e.kind.clone());
         if let Some(entity) = self.graph.node_weight_mut(idx) {
             entity.mark_removed();
             self.version += 1;
+        }
+        if let Some(kind) = kind {
+            self.notify_removed(entity_id, &kind);
         }
     }
 
@@ -185,6 +296,7 @@ impl StateGraph {
 
         if !invalidated.is_empty() {
             self.version += 1;
+            self.notify_invalidated(&invalidated);
         }
 
         invalidated
@@ -217,6 +329,46 @@ impl StateGraph {
         if self.graph.node_count() > 0 {
             self.version += 1;
         }
+    }
+
+    /// Mark entities not present in `seen_keys` as Removed.
+    /// Returns the IDs of newly removed entities.
+    pub fn reconcile(&mut self, seen_keys: &HashSet<StableKey>) -> Vec<EntityId> {
+        let to_remove: Vec<(EntityId, EntityKind)> = self
+            .stable_index
+            .iter()
+            .filter_map(|(key, &id)| {
+                if seen_keys.contains(key) {
+                    return None;
+                }
+                let entity = self.graph.node_weight(id.to_node_index())?;
+                if entity.status == EntityStatus::Removed {
+                    return None;
+                }
+                Some((id, entity.kind.clone()))
+            })
+            .collect();
+
+        if to_remove.is_empty() {
+            return vec![];
+        }
+
+        let mut removed_ids = Vec::with_capacity(to_remove.len());
+        for &(id, _) in &to_remove {
+            if let Some(entity) = self.graph.node_weight_mut(id.to_node_index()) {
+                entity.mark_removed();
+                removed_ids.push(id);
+            }
+        }
+
+        self.version += 1;
+
+        // Notify per-kind so subscriptions only receive relevant removals
+        for (id, kind) in &to_remove {
+            self.notify_removed(*id, kind);
+        }
+
+        removed_ids
     }
 }
 

@@ -65,6 +65,27 @@ pub async fn execute_action(
     let start = Instant::now();
     let before_keys = snapshot_key_set(&state.graph);
 
+    // 0. Check graph version for staleness
+    if step.expected_graph_version > 0 && state.graph.version() != step.expected_graph_version {
+        let result = ExecutionResult {
+            step_id: step.id.clone(),
+            status: ExecutionStatus::Failed,
+            postconditions: vec![],
+            duration_ms: start.elapsed().as_millis() as u64,
+            error: Some(gs_types::ExecutionError {
+                code: "STALE_STATE".into(),
+                message: format!(
+                    "Graph version changed (expected {}, now {}). Re-plan required.",
+                    step.expected_graph_version,
+                    state.graph.version()
+                ),
+                recoverable: true,
+            }),
+        };
+        state.tracer.record_execution(step.clone(), result.clone());
+        return result;
+    }
+
     // 1. Validate preconditions
     if !all_preconditions_met(action, &state.graph) {
         let result = ExecutionResult {

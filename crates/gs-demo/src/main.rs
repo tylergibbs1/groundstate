@@ -288,6 +288,7 @@ async fn run_demo(ws_url: &str, file_url: &str) -> Result<(), Box<dyn std::error
         action: sort_action.clone(),
         params: None,
         description: format!("Execute: {}", sort_action.name),
+        expected_graph_version: state.graph.version(),
     };
 
     let result = execute_action(sort_action, &step, &mut state, &mut transport).await;

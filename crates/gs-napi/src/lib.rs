@@ -1,19 +1,20 @@
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::time::Instant;
 
 use base64::Engine;
 use gs_execute::SessionState;
 use gs_execute::plugins::PluginRegistration;
 use gs_extract::actions::ActionDeriver;
+use gs_reactive::{ReactiveConfig, ReactiveController};
 use gs_transport::BrowserTransport;
 use gs_transport::cdp::CdpTransport;
 use gs_types::*;
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 
 /// Configuration passed from TypeScript to create a session.
 #[derive(Debug, Deserialize)]
@@ -81,10 +82,12 @@ struct ConditionDto {
 ///
 /// Wraps the Rust session state and CDP transport,
 /// serializing all complex data as JSON strings across the FFI boundary.
+/// The reactive observation loop starts automatically on creation.
 #[napi]
 pub struct NativeSession {
     state: Arc<Mutex<SessionState>>,
     transport: Arc<Mutex<CdpTransport>>,
+    reactive: Arc<Mutex<ReactiveController>>,
 }
 
 #[napi]
@@ -129,9 +132,20 @@ impl NativeSession {
             }
         }
 
+        let state = Arc::new(Mutex::new(state));
+        let transport: Arc<Mutex<CdpTransport>> = Arc::new(Mutex::new(transport));
+
+        // Start the reactive observation loop automatically.
+        // It shares the same Arc<Mutex<SessionState>> and transport
+        // so the graph stays in sync.
+        let transport_dyn: Arc<Mutex<dyn BrowserTransport>> = transport.clone();
+        let reactive =
+            ReactiveController::start(state.clone(), transport_dyn, ReactiveConfig::default());
+
         Ok(Self {
-            state: Arc::new(Mutex::new(state)),
-            transport: Arc::new(Mutex::new(transport)),
+            state,
+            transport,
+            reactive: Arc::new(Mutex::new(reactive)),
         })
     }
 
@@ -327,49 +341,58 @@ impl NativeSession {
             .map_err(|e| Error::from_reason(format!("serialization error: {e}")))
     }
 
-    /// Force a fresh browser observation and graph update.
+    /// Subscribe to graph diffs. The callback is called on the Node.js event
+    /// loop whenever the reactive observation loop detects changes.
+    ///
+    /// The callback receives a JSON string representing a `GraphDiff`.
+    #[napi(ts_args_type = "callback: (err: null | Error, diff: string) => void")]
+    pub fn subscribe(
+        &self,
+        callback: ThreadsafeFunction<String, ErrorStrategy::CalleeHandled>,
+    ) -> Result<()> {
+        let reactive = self.reactive.clone();
+
+        tokio::spawn(async move {
+            let controller = reactive.lock().await;
+            let mut rx = controller.subscribe_diffs();
+            drop(controller);
+
+            loop {
+                match rx.recv().await {
+                    Ok(diff) => {
+                        let json = serde_json::to_string(&diff).unwrap_or_default();
+                        callback.call(Ok(json), ThreadsafeFunctionCallMode::NonBlocking);
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        // Send a resync signal — the JS side should re-query
+                        let resync = serde_json::json!({
+                            "resync": true,
+                            "skipped": n,
+                            "graph_version": 0,
+                            "upserted": [],
+                            "invalidated": [],
+                            "removed": []
+                        });
+                        callback.call(
+                            Ok(resync.to_string()),
+                            ThreadsafeFunctionCallMode::NonBlocking,
+                        );
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        break;
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// Get the current graph version.
     #[napi]
-    pub async fn refresh(&self) -> Result<String> {
-        let start = Instant::now();
-        let mut state = self.state.lock().await;
-        let mut transport = self.transport.lock().await;
-        let before_keys = snapshot_key_set(&state);
-
-        let observation = state
-            .observer
-            .observe(&mut *transport)
-            .await
-            .map_err(|e| Error::from_reason(format!("refresh failed: {e}")))?;
-
-        let pipeline = std::mem::take(&mut state.pipeline);
-        let ids = pipeline.extract_and_upsert(&observation, &mut state.graph);
-        state.pipeline = pipeline;
-        let duration_ms = start.elapsed().as_millis() as u64;
-
-        state
-            .tracer
-            .record_observation(&observation.url, ids.len(), duration_ms);
-        state
-            .tracer
-            .record_extraction("refresh", ids.len(), duration_ms);
-        record_graph_snapshot(&state, "refresh", &observation.url, &before_keys);
-
-        let entities: Vec<EntityDto> = state
-            .graph
-            .all_entities()
-            .iter()
-            .map(|e| EntityDto {
-                id: e.session_entity_id.clone(),
-                interactive_ref: interactive_ref_for_entity(e),
-                entity_type: entity_kind_to_string(&e.kind),
-                source: e.source.selector.clone(),
-                confidence: e.confidence,
-                properties: e.properties.clone(),
-            })
-            .collect();
-
-        serde_json::to_string(&entities)
-            .map_err(|e| Error::from_reason(format!("serialization error: {e}")))
+    pub async fn graph_version(&self) -> Result<u32> {
+        let state = self.state.lock().await;
+        Ok(state.graph.version() as u32)
     }
 
     /// Evaluate arbitrary JavaScript in the page context.
@@ -428,6 +451,11 @@ impl NativeSession {
     /// Close the session and disconnect from the browser.
     #[napi]
     pub async fn close(&self) -> Result<()> {
+        // Stop the reactive loop first
+        let mut reactive = self.reactive.lock().await;
+        reactive.stop();
+        drop(reactive);
+
         let mut transport = self.transport.lock().await;
         transport
             .disconnect()
@@ -455,26 +483,6 @@ fn string_to_entity_kind(s: &str) -> EntityKind {
         "searchresult" | "search_result" => EntityKind::SearchResult,
         "pagination" => EntityKind::Pagination,
         _ => EntityKind::Custom(s.to_string()),
-    }
-}
-
-fn entity_kind_to_string(kind: &EntityKind) -> String {
-    match kind {
-        EntityKind::Table => "Table".into(),
-        EntityKind::TableRow => "TableRow".into(),
-        EntityKind::Form => "Form".into(),
-        EntityKind::FormField => "FormField".into(),
-        EntityKind::Button => "Button".into(),
-        EntityKind::Link => "Link".into(),
-        EntityKind::Modal => "Modal".into(),
-        EntityKind::Dialog => "Dialog".into(),
-        EntityKind::Menu => "Menu".into(),
-        EntityKind::Tab => "Tab".into(),
-        EntityKind::List => "List".into(),
-        EntityKind::ListItem => "ListItem".into(),
-        EntityKind::SearchResult => "SearchResult".into(),
-        EntityKind::Pagination => "Pagination".into(),
-        EntityKind::Custom(value) => value.clone(),
     }
 }
 

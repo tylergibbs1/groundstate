@@ -8,6 +8,8 @@ export interface ExecutionStep {
   readonly action: Action;
   readonly params?: Record<string, unknown>;
   readonly description: string;
+  /** Graph version for staleness detection. Auto-attached by the session. */
+  readonly expected_graph_version?: number;
 }
 
 /**

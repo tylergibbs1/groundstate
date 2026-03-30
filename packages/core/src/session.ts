@@ -2,6 +2,7 @@ import type { Bridge } from "./bridge.js";
 import { ActionSet, type Action } from "./action.js";
 import { EntitySet, type Entity, type EntityRef } from "./entity.js";
 import type { QueryOptions, QueryRequest } from "./query.js";
+import type { GraphDiff, Unsubscribe } from "./reactive.js";
 import { TraceView } from "./trace.js";
 import type {
   ExecutionStep,
@@ -89,8 +90,6 @@ export interface RawSessionAccess {
   clickRef(ref: string): Promise<Entity>;
   /** Type text into an element by entity ref string. */
   typeIntoRef(ref: string, text: string): Promise<Entity>;
-  /** Re-extract all entities from the current page. */
-  refresh(): Promise<EntitySet>;
   /** Get incremental session updates since a cursor position. */
   sessionUpdates(cursor?: SessionUpdateCursor): Promise<SessionUpdatePacket>;
 }
@@ -222,6 +221,8 @@ export class Session {
   private readonly onClose?: () => Promise<void> | void;
   private readonly customActionDerivers: CustomActionDeriver[] = [];
   private readonly recoveryPolicies: RecoveryPolicy[] = [];
+  private _graphVersion = 0;
+  private readonly graphChangeListeners: Array<(diff: GraphDiff) => void> = [];
 
   /** Namespace for action-related methods (derive, inspect). */
   readonly actions: SessionActions;
@@ -256,9 +257,18 @@ export class Session {
     this.raw = new SessionRaw(this.bridge, this);
     this.plugins = new SessionPlugins(this.bridge, this);
     this.locator = new SessionLocator(this.raw);
-    this.wait = new SessionWait(this.raw, this.locator);
+    this.wait = new SessionWait(this.raw, this.locator, this.bridge);
     this.batch = new SessionBatch(this.raw, this.locator, this.wait);
     this.overlay = new SessionOverlay(this.bridge, opts.overlay ?? false);
+
+    // Wire up the reactive push channel from the Rust observation loop.
+    // All graph diffs flow through here and are dispatched to subscribers.
+    this.bridge.onGraphChange((diff: GraphDiff) => {
+      this._graphVersion = diff.graph_version;
+      for (const listener of this.graphChangeListeners) {
+        listener(diff);
+      }
+    });
   }
 
   /**
@@ -314,7 +324,14 @@ export class Session {
   async execute(step: ExecutionStep): Promise<ExecutionResult> {
     this.ensureOpen();
 
-    const result = await this.bridge.execute(step);
+    // Auto-attach the current graph version for staleness detection.
+    // The Rust core will reject execution if the graph has changed.
+    const stepWithVersion = {
+      ...step,
+      expected_graph_version: this._graphVersion,
+    };
+
+    const result = await this.bridge.execute(stepWithVersion);
 
     // The trace now contains the execution event — sync the overlay from it.
     await this.overlay._sync();
@@ -401,6 +418,115 @@ export class Session {
   /** @internal -- used by SessionActions to include custom derivers. */
   getCustomActionDerivers(): readonly CustomActionDeriver[] {
     return this.customActionDerivers;
+  }
+
+  /**
+   * Current graph version, updated automatically by the reactive loop.
+   * Use this to detect staleness — if it changed since you last read,
+   * the graph has been updated.
+   */
+  get graphVersion(): number {
+    return this._graphVersion;
+  }
+
+  /**
+   * Subscribe to raw graph diffs from the reactive observation loop.
+   * Fires whenever the graph changes due to DOM mutations.
+   *
+   * @returns Unsubscribe function.
+   */
+  onGraphChange(callback: (diff: GraphDiff) => void): Unsubscribe {
+    this.graphChangeListeners.push(callback);
+    return () => {
+      const idx = this.graphChangeListeners.indexOf(callback);
+      if (idx >= 0) this.graphChangeListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Subscribe to entities matching a query. The callback fires with fresh
+   * results whenever the graph changes in a way that could affect the query.
+   *
+   * This is the Convex `useQuery` equivalent — a live subscription.
+   *
+   * @returns Unsubscribe function.
+   */
+  subscribe<TFields extends Record<string, unknown> = Record<string, unknown>>(
+    options: QueryOptions<TFields>,
+    callback: (entities: EntitySet<Entity<TFields>>) => void,
+  ): Unsubscribe {
+    this.ensureOpen();
+
+    const entityKind = options.entity.toLowerCase();
+
+    return this.onGraphChange((diff) => {
+      // Check if this diff is relevant to the subscription's entity kind
+      const relevant =
+        diff.resync ||
+        diff.upserted.some(
+          (e) => e.kind.toLowerCase() === entityKind,
+        ) ||
+        diff.invalidated.length > 0 ||
+        diff.removed.length > 0;
+
+      if (!relevant) return;
+
+      // Re-query to get the fresh result set
+      void this.query<TFields>(options).then(callback);
+    });
+  }
+
+  /**
+   * Wait for a condition by subscribing to graph changes, not polling.
+   * Resolves when the predicate returns true for the query results.
+   *
+   * @param query - Entity query to subscribe to.
+   * @param predicate - Condition to wait for.
+   * @param options - Optional timeout.
+   * @returns The entities that satisfied the predicate.
+   */
+  waitFor<TFields extends Record<string, unknown> = Record<string, unknown>>(
+    query: QueryOptions<TFields>,
+    predicate: (entities: EntitySet<Entity<TFields>>) => boolean,
+    options?: { timeoutMs?: number },
+  ): Promise<EntitySet<Entity<TFields>>> {
+    this.ensureOpen();
+    const timeoutMs = options?.timeoutMs ?? 10_000;
+
+    return new Promise<EntitySet<Entity<TFields>>>((resolve, reject) => {
+      let settled = false;
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        unsub();
+        reject(
+          new SessionError(
+            `waitFor timed out after ${timeoutMs}ms`,
+          ),
+        );
+      }, timeoutMs);
+
+      // Check current state first
+      void this.query<TFields>(query).then((entities) => {
+        if (settled) return;
+        if (predicate(entities)) {
+          settled = true;
+          clearTimeout(timeout);
+          resolve(entities);
+        }
+      });
+
+      const unsub = this.subscribe<TFields>(query, (entities) => {
+        if (settled) return;
+        if (predicate(entities)) {
+          settled = true;
+          clearTimeout(timeout);
+          unsub();
+          resolve(entities);
+        }
+      });
+    });
   }
 
   private async buildFallbackPlan(options: {
@@ -683,20 +809,12 @@ class SessionRaw implements RawSessionAccess {
     return entity;
   }
 
-  async refresh(): Promise<EntitySet> {
-    if (!this.bridge.refresh) {
-      throw new SessionError("This session does not support manual refresh.");
-    }
-    return new EntitySet(await this.bridge.refresh());
-  }
-
   async sessionUpdates(
     cursor: SessionUpdateCursor = {},
   ): Promise<SessionUpdatePacket> {
     const traceEvents = this.bridge.getTraceSince
       ? await this.bridge.getTraceSince(cursor.traceSeq ?? 0)
       : [];
-    const entities = this.bridge.refresh ? await this.bridge.refresh() : [];
     const currentUrl = this.bridge.currentUrl ? await this.bridge.currentUrl() : "";
     const screenshotBase64 =
       cursor.includeScreenshot && this.bridge.screenshot
@@ -705,7 +823,7 @@ class SessionRaw implements RawSessionAccess {
 
     return {
       traceEvents,
-      entities,
+      entities: [],
       currentUrl,
       screenshotBase64,
     };
@@ -772,6 +890,7 @@ class SessionWait {
   constructor(
     private readonly raw: RawSessionAccess,
     private readonly locator: SessionLocator,
+    private readonly bridge: Bridge,
   ) {}
 
   /**
@@ -856,8 +975,11 @@ class SessionWait {
   }
 
   /**
-   * Wait for the page entity state to stabilize (two consecutive refreshes
-   * return the same entity set).
+   * Wait for the page entity state to stabilize (graph version stops changing).
+   *
+   * In the reactive model, the graph is automatically updated by the
+   * observation loop. This method waits until the graph version is stable
+   * (no changes for two consecutive polls).
    *
    * @param options - Timeout and polling interval.
    * @returns The stable entity set.
@@ -867,18 +989,16 @@ class SessionWait {
     const timeoutMs = options.timeoutMs ?? 10_000;
     const pollMs = options.pollMs ?? 250;
     const start = Date.now();
-    let previous = "";
+    let previousVersion = await this.bridge.graphVersion();
 
     while (Date.now() - start < timeoutMs) {
-      const entities = await this.raw.refresh();
-      const signature = JSON.stringify(
-        entities.entities.map((entity) => `${entity.id}:${entity._entity}`),
-      );
-      if (signature === previous && signature.length > 0) {
-        return entities;
-      }
-      previous = signature;
       await delay(pollMs);
+      const currentVersion = await this.bridge.graphVersion();
+      if (currentVersion === previousVersion && currentVersion > 0) {
+        // Graph version stable — page has settled.
+        return new EntitySet([]);
+      }
+      previousVersion = currentVersion;
     }
 
     throw new SessionError("Timed out waiting for page load state to settle.");
@@ -928,12 +1048,13 @@ class SessionBatch {
           break;
         }
         case "refresh": {
-          const entities = await this.raw.refresh();
+          // In reactive mode, the graph is always fresh.
+          // This is a no-op preserved for batch operation compatibility.
           results.push({
             index,
             operation,
             ok: true,
-            detail: { entityCount: entities.count },
+            detail: { entityCount: 0 },
           });
           break;
         }

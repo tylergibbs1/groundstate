@@ -6,6 +6,7 @@ import type {
   ExecutionStep,
 } from "./postcondition.js";
 import type { QueryRequest } from "./query.js";
+import type { GraphDiff } from "./reactive.js";
 import type { Trace } from "./trace.js";
 import { type Logger, getDefaultLogger } from "./logger.js";
 
@@ -20,11 +21,14 @@ export interface Bridge {
   actionsFor(entityIds: string[]): Promise<Action[]>;
   execute(step: ExecutionStep): Promise<ExecutionResult>;
   plan(options: { goal: string; maxSteps?: number }): Promise<ExecutionPlan>;
+  /** Subscribe to graph diffs pushed from the reactive observation loop. */
+  onGraphChange(callback: (diff: GraphDiff) => void): void;
+  /** Get the current graph version. */
+  graphVersion(): Promise<number>;
   registerPlugin?(plugin: unknown): Promise<void>;
   listPlugins?(): Promise<unknown[]>;
   getTrace(): Promise<Trace>;
   getTraceSince?(sinceSeq: number): Promise<unknown[]>;
-  refresh?(): Promise<Entity[]>;
   evaluateJs?(script: string): Promise<unknown>;
   screenshot?(): Promise<string>;
   currentUrl?(): Promise<string>;
@@ -168,16 +172,31 @@ export class NapiBridge implements Bridge {
     return JSON.parse(json) as unknown[];
   }
 
-  /** Re-extract entities from the current page state. */
-  async refresh(): Promise<Entity[]> {
-    if (!this.native.refresh) return [];
-    const start = performance.now();
-    const json = await this.native.refresh();
-    const entities = JSON.parse(json) as Entity[];
-    this.logger.bridgeOp("refresh", performance.now() - start, {
-      entityCount: entities.length,
+  /**
+   * Subscribe to graph diffs pushed from the Rust reactive observation loop.
+   * The callback fires on the Node.js event loop whenever the graph changes.
+   */
+  onGraphChange(callback: (diff: GraphDiff) => void): void {
+    if (!this.native.subscribe) {
+      this.logger.warn(
+        "Native session does not support subscribe — graph diffs will not be pushed.",
+      );
+      return;
+    }
+    this.native.subscribe((err: Error | null, diffJson: string) => {
+      if (err) {
+        this.logger.warn("graph subscription error", { error: err.message });
+        return;
+      }
+      const diff = JSON.parse(diffJson) as GraphDiff;
+      callback(diff);
     });
-    return entities;
+  }
+
+  /** Get the current graph version. */
+  async graphVersion(): Promise<number> {
+    if (!this.native.graphVersion) return 0;
+    return this.native.graphVersion();
   }
 
   /**
@@ -253,11 +272,16 @@ export interface NativeSessionLike {
   query(queryJson: string): Promise<string>;
   actionsFor(entityRefsJson: string): Promise<string>;
   execute(stepJson: string): Promise<string>;
+  /** Subscribe to graph diffs. Callback receives JSON-serialized GraphDiff. */
+  subscribe?(
+    callback: (err: Error | null, diffJson: string) => void,
+  ): void;
+  /** Get the current graph version. */
+  graphVersion?(): Promise<number>;
   registerPlugin?(pluginJson: string): Promise<void>;
   listPlugins?(): Promise<string>;
   getTrace(): Promise<string>;
   getTraceSince?(sinceSeq: number): Promise<string>;
-  refresh?(): Promise<string>;
   evaluateJs?(script: string): Promise<string>;
   screenshot?(): Promise<string>;
   currentUrl?(): Promise<string>;
