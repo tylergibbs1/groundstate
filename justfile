@@ -81,6 +81,10 @@ demo:
 agent-test:
     cd packages/agent-test && npx tsx src/agent-mock.ts
 
+# Run Groundstate vs Stagehand live browsing benchmark
+vs-stagehand:
+    cd packages/vs-stagehand && pnpm start
+
 # Run the inspector dev server
 inspector:
     cd packages/inspector && pnpm dev

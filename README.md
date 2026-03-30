@@ -8,8 +8,9 @@ Instead of treating every page load as a blank slate, Groundstate extracts seman
 
 1. **Extract** -- observe a page and pull structured entities (tables, forms, buttons, links) from raw DOM
 2. **Graph** -- upsert entities into a versioned state graph that survives mutations, rerenders, and content replacement
-3. **Validate** -- check pre/postconditions against the graph to know whether an action is still valid or needs replanning
-4. **Trace** -- record every observation, mutation, action, and recovery for replay and evaluation
+3. **React** -- continuous observation loop keeps the graph in sync with the browser automatically. Agents subscribe to state; the system pushes changes. No polling, no manual refresh
+4. **Validate** -- check pre/postconditions against the graph to know whether an action is still valid or needs replanning
+5. **Trace** -- record every observation, mutation, action, and recovery for replay and evaluation
 
 The core engine is Rust, exposed to Node.js via NAPI-rs. TypeScript packages provide the runtime, session management, and evaluation framework.
 
@@ -25,6 +26,7 @@ crates/                Rust workspace
   gs-observe/          Page snapshot capture (DOM, a11y)
   gs-transport/        CDP transport layer
   gs-execute/          Action execution with plugin system
+  gs-reactive/         Continuous observation loop + reactive diffs
   gs-napi/             NAPI-rs bindings (Node.js native module)
   gs-demo/             Full vertical slice demo
 
@@ -33,6 +35,7 @@ packages/              TypeScript workspace (pnpm)
   core/                @groundstate/core -- runtime, session, entity bridge
   eval/                @groundstate/eval -- metrics, assertions, golden traces
   suite-b/             Semantic benchmark -- 29 tests across 3 mutation buckets
+  vs-stagehand/        Head-to-head benchmark vs Stagehand on live websites
   agent-test/          Agent SDK integration tests
   inspector/           Next.js UI for inspecting runtime state
 
@@ -83,6 +86,23 @@ pnpm test:semantic -- --verbose   # per-test metrics
 
 After a run, open `packages/suite-b/artifacts/semantic-benchmark/report.html` for a visual report with screenshots and per-test postcondition results.
 
+## Groundstate vs Stagehand
+
+Head-to-head benchmark on live websites (Hacker News, Wikipedia). Compares Groundstate's deterministic extraction against Stagehand's LLM-powered extraction on real browsing tasks.
+
+```sh
+export OPENAI_API_KEY=sk-...      # optional, for Stagehand side
+just vs-stagehand                 # run the comparison
+```
+
+| Metric | Groundstate | Stagehand (gpt-5.4) |
+|--------|-------------|---------------------|
+| Accuracy | 9/9 (100%) | 8/9 (89%) |
+| Total latency | 17s | 67s |
+| Tokens consumed | 0 | ~3,400 |
+
+Three tasks: front-page extraction, multi-page navigation + extraction, and structured table extraction from Wikipedia. Groundstate achieves equal or better accuracy with zero LLM calls, 4x lower latency, and zero token cost.
+
 ## Development
 
 ```sh
@@ -91,6 +111,7 @@ just fmt            # cargo fmt
 just test           # Rust + TS + eval tests
 just bench          # semantic benchmark
 just bench-watch    # benchmark with visible Chrome
+just vs-stagehand   # head-to-head vs Stagehand on live sites
 just demo           # full vertical slice (launches Chrome)
 just inspector      # Next.js inspector dev server
 ```
