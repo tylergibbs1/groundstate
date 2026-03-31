@@ -85,7 +85,7 @@ export class CdpClient {
     await this.evalJS(
       `document.querySelector(${JSON.stringify(selector)})?.click()`,
     );
-    await sleep(350);
+    await sleep(50);
   }
 
   async fill(selector: string, value: string) {
