@@ -453,7 +453,16 @@ export async function launchChrome(
     ],
     { stdio: "ignore" },
   );
-  await sleep(headless ? 2000 : 3000);
+  // Poll for the debug endpoint instead of a fixed sleep.
+  // Chrome typically starts in <500ms headless; the old 2s sleep was wasteful.
+  const deadline = Date.now() + (headless ? 5000 : 8000);
+  while (Date.now() < deadline) {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${port}/json/version`);
+      if (resp.ok) break;
+    } catch { /* not ready yet */ }
+    await sleep(50);
+  }
   return proc;
 }
 
