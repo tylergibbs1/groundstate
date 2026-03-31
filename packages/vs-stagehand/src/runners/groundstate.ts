@@ -213,7 +213,7 @@ async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
       );
       if (ready) {
         // Short settle for deferred JS rendering
-        await sleep(100);
+        await sleep(50);
         return;
       }
     } catch { /* page may still be loading */ }
