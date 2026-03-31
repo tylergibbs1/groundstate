@@ -1,13 +1,32 @@
 /**
  * Groundstate runner — uses the CDP-based extraction pipeline.
  * Reuses the CdpClient from suite-b (same extraction logic as the Rust core).
+ *
+ * Chrome is shared across tasks via ensureChromeReady() to avoid
+ * paying the 2s startup cost per task.
  */
 
 import { CdpClient, getPageWsUrl, launchChrome, sleep } from "../../../suite-b/src/cdp.js";
 import type { BenchTask, SystemResult, PostconditionResult } from "../types.js";
+import type { ChildProcess } from "child_process";
+
+let sharedChrome: ChildProcess | null = null;
+
+async function ensureChromeReady(): Promise<void> {
+  if (sharedChrome && !sharedChrome.killed) return;
+  sharedChrome = await launchChrome(9555);
+}
+
+/** Call after all tasks are done to clean up. */
+export function shutdownChrome(): void {
+  if (sharedChrome && !sharedChrome.killed) {
+    sharedChrome.kill();
+    sharedChrome = null;
+  }
+}
 
 export async function runGroundstate(task: BenchTask): Promise<SystemResult> {
-  const chrome = await launchChrome(9555);
+  await ensureChromeReady();
   const cdp = new CdpClient();
 
   try {
@@ -30,7 +49,6 @@ export async function runGroundstate(task: BenchTask): Promise<SystemResult> {
           break;
         case "extract": {
           if (step.label === "page-info") {
-            // Special case: page info is metadata, not entity extraction
             const url = await cdp.evalJS<string>("window.location.href");
             const title = await cdp.evalJS<string>("document.title");
             extractions.set(step.label, { title, url });
@@ -77,8 +95,6 @@ export async function runGroundstate(task: BenchTask): Promise<SystemResult> {
     };
   } finally {
     cdp.close();
-    chrome.kill();
-    await sleep(500);
   }
 }
 

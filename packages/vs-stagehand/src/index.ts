@@ -35,7 +35,7 @@ try {
 import { hnExtract } from "./tasks/hn-extract.js";
 import { hnNavigate } from "./tasks/hn-navigate.js";
 import { wikiTable } from "./tasks/wiki-table.js";
-import { runGroundstate } from "./runners/groundstate.js";
+import { runGroundstate, shutdownChrome } from "./runners/groundstate.js";
 import { runStagehand, stagehandAvailable } from "./runners/stagehand.js";
 import { printConsoleReport, writeHtmlReport } from "./report.js";
 import type { BenchTask, TaskReport } from "./types.js";
@@ -85,6 +85,9 @@ async function main() {
     reports.push(report);
     console.log();
   }
+
+  // Clean up shared Chrome instance
+  shutdownChrome();
 
   // Report
   printConsoleReport(reports);
