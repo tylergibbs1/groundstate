@@ -60,7 +60,16 @@ export class CdpClient {
 
   async navigate(url: string) {
     await this.send("Page.navigate", { url });
-    await sleep(1200);
+    // Wait for the page to be interactive instead of a fixed sleep.
+    // Poll document.readyState — much faster than the old 1200ms sleep.
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      try {
+        const ready = await this.evalJS<string>("document.readyState");
+        if (ready === "complete" || ready === "interactive") break;
+      } catch { /* page may be mid-navigation */ }
+      await sleep(50);
+    }
   }
 
   async evalJS<T = any>(expression: string): Promise<T> {

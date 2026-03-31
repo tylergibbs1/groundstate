@@ -42,7 +42,9 @@ export async function runGroundstate(task: BenchTask): Promise<SystemResult> {
           await cdp.navigate(step.url);
           break;
         case "wait":
-          await sleep(step.ms);
+          // Use a shorter DOM-content-ready poll instead of the full static delay.
+          // The task wait is a max bound — we can proceed once content is on the page.
+          await waitForContent(cdp, step.ms);
           break;
         case "click":
           await cdp.click(step.selector);
@@ -195,6 +197,26 @@ function extractHNStories(entities: any[]): any[] {
       title: e.text || e.label || e.title || e._cells?.[0] || "unknown",
       url: e.href || undefined,
     }));
+}
+
+/**
+ * Wait until the page has meaningful content, up to maxMs.
+ * Checks document.readyState and body child count — proceeds as soon as
+ * the page looks loaded rather than sleeping the full delay.
+ */
+async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
+  const deadline = Date.now() + maxMs;
+  // Minimum wait of 200ms to let initial DOM populate
+  await sleep(200);
+  while (Date.now() < deadline) {
+    try {
+      const ready = await cdp.evalJS<boolean>(
+        "document.readyState === 'complete' && document.body && document.body.children.length > 3"
+      );
+      if (ready) return;
+    } catch { /* page may still be loading */ }
+    await sleep(100);
+  }
 }
 
 function safeCheck(
