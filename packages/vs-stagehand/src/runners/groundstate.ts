@@ -211,11 +211,7 @@ async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
       const ready = await cdp.evalJS<boolean>(
         "document.readyState === 'complete'"
       );
-      if (ready) {
-        // Short settle for deferred JS rendering
-        await sleep(50);
-        return;
-      }
+      if (ready) return;
     } catch { /* page may still be loading */ }
     await sleep(50);
   }
