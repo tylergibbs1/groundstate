@@ -201,17 +201,21 @@ function extractHNStories(entities: any[]): any[] {
 
 /**
  * Wait until the page has meaningful content, up to maxMs.
- * Checks document.readyState and body child count — proceeds as soon as
- * the page looks loaded rather than sleeping the full delay.
+ * Two-phase: first wait for readyState=complete, then a short 100ms
+ * settle to let any deferred JS render. Much faster than static sleeps.
  */
 async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
     try {
       const ready = await cdp.evalJS<boolean>(
-        "document.readyState === 'complete' && document.body && document.body.children.length > 3"
+        "document.readyState === 'complete'"
       );
-      if (ready) return;
+      if (ready) {
+        // Short settle for deferred JS rendering
+        await sleep(100);
+        return;
+      }
     } catch { /* page may still be loading */ }
     await sleep(50);
   }
