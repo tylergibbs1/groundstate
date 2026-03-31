@@ -59,17 +59,26 @@ export class CdpClient {
   }
 
   async navigate(url: string) {
+    // Listen for loadEventFired before navigating so we don't miss it.
+    const loaded = this.waitForEvent("Page.loadEventFired", 10000);
     await this.send("Page.navigate", { url });
-    // Wait for the page to be interactive instead of a fixed sleep.
-    // Poll document.readyState — much faster than the old 1200ms sleep.
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline) {
-      try {
-        const ready = await this.evalJS<string>("document.readyState");
-        if (ready === "complete" || ready === "interactive") break;
-      } catch { /* page may be mid-navigation */ }
-      await sleep(50);
-    }
+    await loaded;
+  }
+
+  /** Wait for a CDP event, with timeout. */
+  private waitForEvent(event: string, timeoutMs: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, timeoutMs);
+      const handler = (data: WebSocket.RawData) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.method === event) {
+          clearTimeout(timer);
+          this.ws.off("message", handler);
+          resolve();
+        }
+      };
+      this.ws.on("message", handler);
+    });
   }
 
   async evalJS<T = any>(expression: string): Promise<T> {
