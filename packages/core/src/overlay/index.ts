@@ -154,7 +154,11 @@ export class OverlayManager {
     }
   }
 
+  // Trace entries arrive as raw JSON from Rust (snake_case) but the TS types
+  // use camelCase.  Read both forms so the overlay works regardless.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private processEntry(entry: TraceEntry): void {
+    const raw = entry as any;
     switch (entry.type) {
       case "navigation": {
         this.pageCount++;
@@ -171,29 +175,36 @@ export class OverlayManager {
       case "observation": {
         this.label = "Observing page\u2026";
         this.dotClass = "working";
-        if (entry.entityCount > 0) {
-          this.activity.push(`Scanned ${entry.entityCount} elements`);
+        const obsCount: number = raw.entityCount ?? raw.entity_count ?? 0;
+        if (obsCount > 0) {
+          this.activity.push(`Scanned ${obsCount} elements`);
         }
         // Trigger scan animation
         this.triggerScan();
         break;
       }
       case "extraction": {
-        if (entry.count > 0) {
-          this.label = `${entry.count} ${entry.entityType}`;
+        const extCount: number = raw.count ?? 0;
+        const extType: string = raw.entityType ?? raw.entity_type ?? "";
+        if (extCount > 0) {
+          this.label = `${extCount} ${extType}`;
           this.dotClass = "";
         }
         break;
       }
       case "snapshot": {
-        if (entry.changed) {
-          if (entry.addedCount > 0 && entry.removedCount > 0) {
-            this.activity.push(`\u0394 +${entry.addedCount} \u2212${entry.removedCount}`);
-          } else if (entry.addedCount > 0) {
-            this.activity.push(`+ ${entry.addedCount} new elements`);
+        const addedCount: number = raw.addedCount ?? raw.added_count ?? 0;
+        const removedCount: number = raw.removedCount ?? raw.removed_count ?? 0;
+        const entityCount: number = raw.entityCount ?? raw.entity_count ?? 0;
+        const changed: boolean = raw.changed ?? false;
+        if (changed) {
+          if (addedCount > 0 && removedCount > 0) {
+            this.activity.push(`\u0394 +${addedCount} \u2212${removedCount}`);
+          } else if (addedCount > 0) {
+            this.activity.push(`+ ${addedCount} new elements`);
           }
         }
-        this.label = `${entry.entityCount} elements`;
+        this.label = `${entityCount} elements`;
         this.dotClass = "";
         break;
       }
@@ -215,8 +226,10 @@ export class OverlayManager {
         break;
       }
       case "query": {
-        if (entry.resultCount > 0) {
-          this.activity.push(`? ${entry.entityType}: ${entry.resultCount}`);
+        const qCount: number = raw.resultCount ?? raw.result_count ?? 0;
+        const qType: string = raw.entityType ?? raw.entity_type ?? "";
+        if (qCount > 0) {
+          this.activity.push(`? ${qType}: ${qCount}`);
         }
         break;
       }
@@ -229,8 +242,9 @@ export class OverlayManager {
         break;
       }
       case "state_change": {
-        if (entry.invalidatedCount > 0) {
-          this.activity.push(`~ ${entry.invalidatedCount} invalidated`);
+        const invCount: number = raw.invalidatedCount ?? raw.invalidated_count ?? 0;
+        if (invCount > 0) {
+          this.activity.push(`~ ${invCount} invalidated`);
         }
         break;
       }

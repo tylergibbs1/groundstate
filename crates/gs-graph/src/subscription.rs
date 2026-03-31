@@ -27,10 +27,24 @@ pub struct EntitySnapshot {
 
 impl From<&SemanticEntity> for EntitySnapshot {
     fn from(e: &SemanticEntity) -> Self {
+        // Merge _source and _confidence into properties so the overlay
+        // highlight layer can locate elements on the page.
+        let mut props = e.properties.clone();
+        if let Some(obj) = props.as_object_mut() {
+            obj.insert(
+                "_source".to_string(),
+                serde_json::Value::String(e.source.selector.clone()),
+            );
+            obj.insert(
+                "_confidence".to_string(),
+                serde_json::json!(e.confidence),
+            );
+        }
+
         Self {
             id: e.id,
             kind: e.kind.clone(),
-            properties: e.properties.clone(),
+            properties: props,
             version: e.version,
             session_entity_id: e.session_entity_id.clone(),
         }
