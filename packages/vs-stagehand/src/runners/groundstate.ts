@@ -206,8 +206,6 @@ function extractHNStories(entities: any[]): any[] {
  */
 async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
   const deadline = Date.now() + maxMs;
-  // Minimum wait of 200ms to let initial DOM populate
-  await sleep(200);
   while (Date.now() < deadline) {
     try {
       const ready = await cdp.evalJS<boolean>(
@@ -215,7 +213,7 @@ async function waitForContent(cdp: CdpClient, maxMs: number): Promise<void> {
       );
       if (ready) return;
     } catch { /* page may still be loading */ }
-    await sleep(100);
+    await sleep(50);
   }
 }
 
