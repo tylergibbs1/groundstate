@@ -28,4 +28,7 @@ pub enum TransportError {
 
     #[error("element not found: {0}")]
     ElementNotFound(String),
+
+    #[error("no observable browser transition after click: {0}")]
+    NoObservableTransition(String),
 }

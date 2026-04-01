@@ -86,6 +86,24 @@ pnpm test:semantic -- --verbose   # per-test metrics
 
 After a run, open `packages/suite-b/artifacts/semantic-benchmark/report.html` for a visual report with screenshots and per-test postcondition results.
 
+## Generalization benchmark
+
+The generalization benchmark is the anti-overfitting check. Instead of asking whether one fixture passes, it groups fixtures by browser concept and checks whether the same semantic contract survives across very different DOM shapes.
+
+Current families:
+
+- `result_entities` -- search cards vs docs guide cards
+- `tabular_entities` -- plain invoice tables vs deeply nested noisy dashboards
+- `workflow_forms` -- inline validation flows vs full auth timeout page replacement
+
+```sh
+just bench-generalization             # headless
+just bench-generalization-watch       # visible browser
+just bench-generalization-open        # run + open report
+```
+
+After a run, open `packages/suite-b/artifacts/generalization-benchmark/report.html` for the family-level scorecard.
+
 ## Groundstate vs Stagehand
 
 Head-to-head benchmark on live websites (Hacker News, Wikipedia). Compares Groundstate's deterministic extraction against Stagehand's LLM-powered extraction on real browsing tasks.

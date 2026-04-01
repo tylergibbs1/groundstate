@@ -54,6 +54,18 @@ bench-watch:
 bench-open:
     cd packages/suite-b && pnpm test:semantic:open
 
+# Run generalization benchmark suite (cross-fixture anti-overfitting checks)
+bench-generalization:
+    cd packages/suite-b && pnpm test:generalization
+
+# Run generalization benchmark with visible browser
+bench-generalization-watch:
+    cd packages/suite-b && pnpm test:generalization:watch
+
+# Run generalization benchmark and open HTML report
+bench-generalization-open:
+    cd packages/suite-b && pnpm test:generalization:open
+
 # Run everything CI runs
 ci: check build test bench
 
@@ -76,6 +88,15 @@ lint: fmt check
 # Run the Rust demo (launches Chrome, full vertical slice)
 demo:
     cargo run -p gs-demo
+
+# Launch live browser demo with overlay on a real URL (default: Hacker News)
+demo-live url="https://news.ycombinator.com" goal="Extract all story titles, find the top 3 by points, and click into the highest-scored story.":
+    cd packages/agent-test && npx tsx src/groundstate-anthropic.ts --visible --url={{url}} --goal="{{goal}}"
+
+# Build everything then launch live demo
+demo-live-full url="https://news.ycombinator.com" goal="Extract all story titles, find the top 3 by points, and click into the highest-scored story.":
+    just build
+    just demo-live "{{url}}" "{{goal}}"
 
 # Run the agent SDK mock test (requires ANTHROPIC_API_KEY)
 agent-test:

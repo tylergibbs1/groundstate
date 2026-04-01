@@ -71,6 +71,15 @@ export interface LocatorMatch {
   readonly label?: string;
 }
 
+interface ClickObservation {
+  readonly url: string;
+  readonly title: string;
+  readonly domNodeCount: number;
+  readonly bodyTextHash: string;
+  readonly targetPresent: boolean;
+  readonly targetHash: string;
+}
+
 /**
  * Low-level session access for direct browser interaction.
  * Available via `session.raw`. Prefer semantic methods when possible.
@@ -86,6 +95,8 @@ export interface RawSessionAccess {
   clickSelector(selector: string): Promise<void>;
   /** Type text into an element by CSS selector. */
   typeIntoSelector(selector: string, text: string): Promise<void>;
+  /** Switch to the latest page target if a click opened a new tab/window. */
+  followLatestPageTarget?(): Promise<string>;
   /** Click an element by entity ref string. */
   clickRef(ref: string): Promise<Entity>;
   /** Type text into an element by entity ref string. */
@@ -268,6 +279,8 @@ export class Session {
       for (const listener of this.graphChangeListeners) {
         listener(diff);
       }
+      // Push graph diffs to the overlay highlight layer (non-blocking).
+      void this.overlay._applyDiff(diff);
     });
   }
 
@@ -797,6 +810,11 @@ class SessionRaw implements RawSessionAccess {
     await this.bridge.typeIntoSelector(selector, text);
   }
 
+  async followLatestPageTarget(): Promise<string> {
+    if (!this.bridge.followLatestPageTarget) return "";
+    return this.bridge.followLatestPageTarget();
+  }
+
   async clickRef(ref: string): Promise<Entity> {
     const entity = await resolveEntityRef(this.bridge, ref);
     await this.clickSelector(entity._source);
@@ -863,7 +881,14 @@ class SessionLocator {
     if (!match) {
       throw new SessionError(`No element matched locator ${JSON.stringify(query)}`);
     }
+    const before = await captureClickObservation(this.raw, match.selector);
     await this.raw.clickSelector(match.selector);
+    const after = await waitForClickTransition(this.raw, match, before);
+    if (!didClickCauseStateTransition(before, after)) {
+      throw new SessionError(
+        `Click on ${match.selector} produced no observable browser state transition.`,
+      );
+    }
     return match;
   }
 
@@ -1087,9 +1112,11 @@ class SessionBatch {
 class SessionOverlay {
   /** @internal */
   readonly _manager: OverlayManager;
+  private readonly bridge: Bridge;
   private enabled: boolean;
 
   constructor(bridge: Bridge, enabled: boolean) {
+    this.bridge = bridge;
     this._manager = new OverlayManager(bridge);
     this.enabled = enabled;
   }
@@ -1098,6 +1125,7 @@ class SessionOverlay {
   async enable(): Promise<void> {
     this.enabled = true;
     await this._manager.inject();
+    await this.bootstrapHighlights();
     await this._manager.sync();
   }
 
@@ -1135,9 +1163,32 @@ class SessionOverlay {
     }
   }
 
+  /**
+   * Feed a graph diff to the highlight layer.
+   * @internal — called from the session's onGraphChange handler.
+   */
+  async _applyDiff(diff: GraphDiff): Promise<void> {
+    if (!this.enabled) return;
+    try {
+      await this._manager.applyDiff(diff);
+      await this._manager.sync();
+    } catch {
+      // Overlay diff failures are non-fatal.
+    }
+  }
+
   /** @internal — called by Runtime after session creation when overlay: true. */
   async _autoEnable(): Promise<void> {
     await this.enable();
+  }
+
+  private async bootstrapHighlights(): Promise<void> {
+    try {
+      const entities = await collectEntitiesByKnownKinds(this.bridge);
+      this._manager.seed(entities);
+    } catch {
+      // Overlay bootstrap failures are non-fatal.
+    }
   }
 }
 
@@ -1210,6 +1261,13 @@ function buildLocatorScript(query: LocatorQuery): string {
     const limit = query.limit ?? 20;
     const exact = Boolean(query.exact);
     const normalize = (value) => (value ?? "").replace(/\\s+/g, " ").trim();
+    const sanitizeSelector = (value) => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      const unwrapped = trimmed.replace(/^['"\`]+|['"\`]+$/g, "");
+      return unwrapped || undefined;
+    };
     const match = (candidate, expected) => {
       if (!expected) return true;
       const left = normalize(candidate).toLowerCase();
@@ -1243,9 +1301,15 @@ function buildLocatorScript(query: LocatorQuery): string {
       }
       return parts.join(" > ");
     };
-    const nodes = query.selector
-      ? Array.from(document.querySelectorAll(query.selector))
-      : Array.from(document.querySelectorAll('a, button, input, textarea, select, [role], li, article'));
+    const selector = sanitizeSelector(query.selector);
+    let nodes = [];
+    try {
+      nodes = selector
+        ? Array.from(document.querySelectorAll(selector))
+        : Array.from(document.querySelectorAll('a, button, input, textarea, select, [role], li, article'));
+    } catch {
+      nodes = [];
+    }
     const results = [];
     for (const element of nodes) {
       const text = normalize(element.innerText || element.textContent || element.getAttribute("value"));
@@ -1300,6 +1364,111 @@ async function pollUntil<T>(
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function captureClickObservation(
+  raw: Pick<RawSessionAccess, "evaluate" | "currentUrl">,
+  selector: string,
+): Promise<ClickObservation> {
+  const observation = await raw.evaluate<Omit<ClickObservation, "url">>(
+    `(() => {
+      const normalize = (value) => String(value ?? "").replace(/\\s+/g, " ").trim();
+      const hash = (value) => {
+        let acc = 0;
+        for (let i = 0; i < value.length; i += 1) {
+          acc = (acc * 31 + value.charCodeAt(i)) >>> 0;
+        }
+        return acc.toString(16);
+      };
+
+      let target = null;
+      try {
+        target = document.querySelector(${JSON.stringify(selector)});
+      } catch {
+        target = null;
+      }
+
+      const bodyText = normalize(document.body?.innerText || document.body?.textContent || "").slice(0, 4000);
+      const targetState = target
+        ? normalize([
+            target.outerHTML,
+            target.getAttribute("aria-expanded"),
+            target.getAttribute("aria-pressed"),
+            target.getAttribute("aria-selected"),
+            target.getAttribute("aria-checked"),
+            "value" in target ? target.value : "",
+            "checked" in target ? String(Boolean(target.checked)) : "",
+            document.activeElement === target ? "focused" : "",
+          ].join("|")).slice(0, 3000)
+        : "";
+
+      return {
+        title: document.title || "",
+        domNodeCount: document.querySelectorAll("body *").length,
+        bodyTextHash: hash(bodyText),
+        targetPresent: Boolean(target),
+        targetHash: hash(targetState),
+      };
+    })()`,
+  );
+
+  return {
+    url: await raw.currentUrl(),
+    ...observation,
+  };
+}
+
+function didClickCauseStateTransition(
+  before: ClickObservation,
+  after: ClickObservation,
+): boolean {
+  return (
+    before.url !== after.url ||
+    before.title !== after.title ||
+    before.domNodeCount !== after.domNodeCount ||
+    before.bodyTextHash !== after.bodyTextHash ||
+    before.targetPresent !== after.targetPresent ||
+    before.targetHash !== after.targetHash
+  );
+}
+
+function isLikelyNavigationalClick(match: LocatorMatch): boolean {
+  if (match.role?.toLowerCase() === "link") return true;
+  if (match.href && !match.href.startsWith("#")) return true;
+  return /^a(\b|[\[#.:])/.test(match.selector);
+}
+
+async function waitForClickTransition(
+  raw: Pick<RawSessionAccess, "evaluate" | "currentUrl" | "followLatestPageTarget">,
+  match: LocatorMatch,
+  before: ClickObservation,
+): Promise<ClickObservation> {
+  const timeoutMs = isLikelyNavigationalClick(match) ? 2_500 : 1_200;
+  const pollMs = 100;
+
+  try {
+    return await pollUntil(
+      async () => {
+        const current = await captureClickObservation(raw, match.selector);
+        return didClickCauseStateTransition(before, current) ? current : null;
+      },
+      timeoutMs,
+      pollMs,
+      `click transition for ${match.selector}`,
+    );
+  } catch (error) {
+    if (isLikelyNavigationalClick(match)) {
+      const switchedUrl = await raw.followLatestPageTarget?.();
+      if (switchedUrl) {
+        const current = await captureClickObservation(raw, match.selector);
+        if (didClickCauseStateTransition(before, current)) {
+          return current;
+        }
+      }
+      throw error;
+    }
+    return captureClickObservation(raw, match.selector);
+  }
 }
 
 async function resolveEntityRef(

@@ -30,3 +30,5 @@ chrono = { version = "0.4", features = ["serde"] }
 petgraph = "0.7"
 tracing = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+url = "2"

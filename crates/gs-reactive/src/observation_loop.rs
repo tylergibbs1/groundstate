@@ -75,6 +75,18 @@ pub(crate) async fn run(
                             first_mutation_at = Some(tokio::time::Instant::now());
                         }
                     }
+                    Ok(BrowserEvent::WindowOpened { .. }) if config.observe_on_navigate => {
+                        dirty = true;
+                        if first_mutation_at.is_none() {
+                            first_mutation_at = Some(tokio::time::Instant::now());
+                        }
+                    }
+                    Ok(BrowserEvent::TargetCreated { .. }) if config.observe_on_navigate => {
+                        dirty = true;
+                        if first_mutation_at.is_none() {
+                            first_mutation_at = Some(tokio::time::Instant::now());
+                        }
+                    }
                     Ok(_) => {}
                     Err(broadcast::error::RecvError::Lagged(n)) => {
                         warn!(skipped = n, "reactive loop lagged behind browser events");

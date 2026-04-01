@@ -378,6 +378,38 @@ describe("Session", () => {
     );
   });
 
+  it("bootstraps overlay highlights from the current graph on enable", async () => {
+    const evaluateJs = vi.fn().mockResolvedValue(true);
+    const bridge = createMockBridge({
+      evaluateJs,
+      query: vi.fn().mockImplementation(async (request) => {
+        if (request.entity === "Table") {
+          return [
+            {
+              id: "table-1",
+              _entity: "Table",
+              _source: "#invoices",
+              _confidence: 0.9,
+            },
+          ];
+        }
+        return [];
+      }),
+      getTraceSince: vi.fn().mockResolvedValue([]),
+    });
+
+    const session = new Session(bridge, { overlay: true });
+    await session.overlay.enable();
+
+    expect(bridge.query).toHaveBeenCalledWith({
+      entity: "Table",
+      where: undefined,
+      limit: undefined,
+      orderBy: undefined,
+    });
+    expect(evaluateJs).toHaveBeenCalled();
+  });
+
   it("resolves interactive refs for raw click/type", async () => {
     const bridge = createMockBridge({
       query: vi.fn().mockImplementation(async (request) => {
@@ -446,14 +478,36 @@ describe("Session", () => {
   });
 
   it("locates and clicks elements via semantic locators", async () => {
-    const bridge = createMockBridge({
-      evaluateJs: vi.fn().mockResolvedValue([
+    const evaluateJs = vi
+      .fn()
+      .mockResolvedValueOnce([
         {
           selector: 'a[href="/story"]',
           text: "Open story",
           role: "link",
+          href: "/story",
         },
-      ]),
+      ])
+      .mockResolvedValueOnce({
+        title: "Stories",
+        domNodeCount: 5,
+        bodyTextHash: "aaa",
+        targetPresent: true,
+        targetHash: "before",
+      })
+      .mockResolvedValueOnce({
+        title: "Story detail",
+        domNodeCount: 7,
+        bodyTextHash: "bbb",
+        targetPresent: false,
+        targetHash: "after",
+      });
+    const bridge = createMockBridge({
+      evaluateJs,
+      currentUrl: vi
+        .fn()
+        .mockResolvedValueOnce("https://example.com/news")
+        .mockResolvedValueOnce("https://example.com/story"),
       clickSelector: vi.fn().mockResolvedValue(undefined),
     });
 
@@ -462,6 +516,125 @@ describe("Session", () => {
 
     expect(match.selector).toBe('a[href="/story"]');
     expect(bridge.clickSelector).toHaveBeenCalledWith('a[href="/story"]');
+  });
+
+  it("fails semantic clicks that cause no observable browser transition", async () => {
+    const evaluateJs = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          selector: 'a[href="/story"]',
+          text: "Open story",
+          role: "link",
+          href: "/story",
+        },
+      ])
+      .mockResolvedValue({
+        title: "Stories",
+        domNodeCount: 5,
+        bodyTextHash: "same",
+        targetPresent: true,
+        targetHash: "same",
+      });
+    const bridge = createMockBridge({
+      evaluateJs,
+      currentUrl: vi.fn().mockResolvedValue("https://example.com/news"),
+      clickSelector: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const session = new Session(bridge);
+
+    await expect(
+      session.locator.click({ role: "link", text: "Open story" }),
+    ).rejects.toThrow("Timed out waiting for click transition");
+  });
+
+  it("accepts semantic clicks when the target mutates without navigation", async () => {
+    const evaluateJs = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          selector: 'button[data-sort="amount"]',
+          text: "Amount",
+          role: "button",
+        },
+      ])
+      .mockResolvedValueOnce({
+        title: "Invoices",
+        domNodeCount: 12,
+        bodyTextHash: "rows",
+        targetPresent: true,
+        targetHash: "plain",
+      })
+      .mockResolvedValueOnce({
+        title: "Invoices",
+        domNodeCount: 12,
+        bodyTextHash: "rows",
+        targetPresent: true,
+        targetHash: "sorted-asc",
+      });
+    const bridge = createMockBridge({
+      evaluateJs,
+      currentUrl: vi.fn().mockResolvedValue("https://example.com/invoices"),
+      clickSelector: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const session = new Session(bridge);
+    const match = await session.locator.click({ role: "button", text: "Amount" });
+
+    expect(match.selector).toBe('button[data-sort="amount"]');
+    expect(bridge.clickSelector).toHaveBeenCalledWith('button[data-sort="amount"]');
+  });
+
+  it("follows a newly opened page target for navigational clicks", async () => {
+    let switched = false;
+    const evaluateJs = vi.fn().mockImplementation(async () => {
+      if ((evaluateJs.mock.calls.length ?? 0) === 1) {
+        return [
+          {
+            selector: 'a[href="https://example.com/story"]',
+            text: "Open story",
+            role: "link",
+            href: "https://example.com/story",
+          },
+        ];
+      }
+
+      return switched
+        ? {
+            title: "Story",
+            domNodeCount: 9,
+            bodyTextHash: "story",
+            targetPresent: false,
+            targetHash: "new-target",
+          }
+        : {
+            title: "News",
+            domNodeCount: 5,
+            bodyTextHash: "same",
+            targetPresent: true,
+            targetHash: "same",
+          };
+    });
+    const bridge = createMockBridge({
+      evaluateJs,
+      currentUrl: vi
+        .fn()
+        .mockImplementation(async () =>
+          switched ? "https://example.com/story" : "https://example.com/news",
+        ),
+      clickSelector: vi.fn().mockResolvedValue(undefined),
+      followLatestPageTarget: vi.fn().mockImplementation(async () => {
+        switched = true;
+        return "https://example.com/story";
+      }),
+    });
+
+    const session = new Session(bridge);
+    const match = await session.locator.click({ role: "link", text: "Open story" });
+
+    expect(match.selector).toBe('a[href="https://example.com/story"]');
+    expect(bridge.followLatestPageTarget).toHaveBeenCalledTimes(1);
   });
 
   it("fails when no locator match is found", async () => {

@@ -32,6 +32,15 @@ pub enum BrowserEvent {
         frame_id: String,
         url: String,
     },
+    WindowOpened {
+        url: String,
+        window_name: String,
+    },
+    TargetCreated {
+        target_id: String,
+        target_type: String,
+        url: String,
+    },
 }
 
 /// Result of a page navigation.

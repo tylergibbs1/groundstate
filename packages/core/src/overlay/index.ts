@@ -1,4 +1,5 @@
 import type { Bridge } from "../bridge.js";
+import type { Entity } from "../entity.js";
 import type { TraceEntry } from "../trace.js";
 import type { GraphDiff, EntitySnapshot } from "../reactive.js";
 import {
@@ -59,6 +60,7 @@ export class OverlayManager {
   private entityCounts: Map<string, number> = new Map();
 
   private static readonly MAX_ACTIVITY = 20;
+  private static readonly MAX_ENTITY_SUMMARY = 6;
 
   constructor(bridge: Bridge) {
     this.bridge = bridge;
@@ -128,6 +130,12 @@ export class OverlayManager {
       try {
         await this.bridge.evaluateJs(buildHighlightPulseScript(diff.invalidated));
       } catch { /* non-fatal */ }
+    }
+  }
+
+  seed(entities: readonly Entity[]): void {
+    for (const entity of entities) {
+      this.trackLiveEntity(entity);
     }
   }
 
@@ -269,7 +277,7 @@ export class OverlayManager {
       detail: this.detail,
       pills,
       activity: this.activity.slice(-12),
-      entitySummary,
+      entitySummary: entitySummary.slice(0, OverlayManager.MAX_ENTITY_SUMMARY),
       graphVersion: this.graphVersion,
     };
   }
@@ -311,6 +319,29 @@ export class OverlayManager {
       selector,
       label: kind,
       confidence: confidence ?? undefined,
+      showLabel: shouldShowLabel(kind, confidence),
+      renderMode: kind === "tablerow" || kind === "listitem" ? "heatmap" : "frame",
+      emphasis: shouldEmphasize(kind) ? "strong" : "normal",
+    });
+  }
+
+  private trackLiveEntity(entity: Entity): void {
+    if (!entity._source) return;
+
+    const kind = entity._entity.toLowerCase();
+    if (!this.entities.has(entity.id)) {
+      this.entityCounts.set(kind, (this.entityCounts.get(kind) ?? 0) + 1);
+    }
+
+    this.entities.set(entity.id, {
+      id: entity.id,
+      kind,
+      selector: entity._source,
+      label: kind,
+      confidence: entity._confidence ?? undefined,
+      showLabel: shouldShowLabel(kind, entity._confidence),
+      renderMode: kind === "tablerow" || kind === "listitem" ? "heatmap" : "frame",
+      emphasis: shouldEmphasize(kind) ? "strong" : "normal",
     });
   }
 
@@ -346,4 +377,25 @@ function hostFromUrl(url: string): string {
   } catch {
     return url.length > 40 ? url.slice(0, 37) + "\u2026" : url;
   }
+}
+
+function shouldShowLabel(kind: string, confidence?: number): boolean {
+  if ((confidence ?? 0) < 0.8) return false;
+  return kind === "table" ||
+    kind === "form" ||
+    kind === "button" ||
+    kind === "modal" ||
+    kind === "dialog" ||
+    kind === "searchresult" ||
+    kind === "pagination";
+}
+
+function shouldEmphasize(kind: string): boolean {
+  return kind === "table" ||
+    kind === "form" ||
+    kind === "button" ||
+    kind === "modal" ||
+    kind === "dialog" ||
+    kind === "searchresult" ||
+    kind === "pagination";
 }

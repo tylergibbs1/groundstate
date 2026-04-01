@@ -9,7 +9,11 @@
     "test:semantic": "npx tsx src/run-semantic.ts",
     "test:semantic:verbose": "npx tsx src/run-semantic.ts --verbose",
     "test:semantic:watch": "npx tsx src/run-semantic.ts --visible --delay-ms=1400",
-    "test:semantic:open": "npx tsx src/run-semantic.ts && open artifacts/semantic-benchmark/report.html"
+    "test:semantic:open": "npx tsx src/run-semantic.ts && open artifacts/semantic-benchmark/report.html",
+    "test:generalization": "npx tsx src/run-generalization.ts",
+    "test:generalization:verbose": "npx tsx src/run-generalization.ts --verbose",
+    "test:generalization:watch": "npx tsx src/run-generalization.ts --visible",
+    "test:generalization:open": "npx tsx src/run-generalization.ts && open artifacts/generalization-benchmark/report.html"
   },
   "dependencies": {
     "ws": "^8.18.0"

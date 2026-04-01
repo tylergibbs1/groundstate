@@ -14,3 +14,5 @@ tracing.workspace = true
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 futures-util = "0.3"
 base64 = "0.22"
+reqwest.workspace = true
+url.workspace = true

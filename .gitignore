@@ -43,3 +43,5 @@ run.log
 results.tsv
 run-benchmark.sh
 research.toml
+results.tsv
+run.log

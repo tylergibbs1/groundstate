@@ -1,0 +1,33 @@
+{
+  "metric_name": "total_latency_ms",
+  "metric_direction": "lower",
+  "metric_parse": "grep 'TOTAL' run.log | head -1 | grep -oE '[0-9]+ms' | grep -oE '[0-9]+'",
+  "run_command": "cd packages/vs-stagehand && npx tsx src/index.ts --gs-only",
+  "setup_check": "cargo test -p gs-extract --lib",
+  "build_command": "cd packages/napi && pnpm build",
+  "timeout_seconds": 180,
+  "guard_metric_name": "gs_accuracy",
+  "guard_metric_parse": "grep 'TOTAL' run.log | head -1 | grep -oE '[0-9]+/[0-9]+' | head -1",
+  "guard_metric_value": "9/9",
+  "modifiable_files": [
+    "crates/gs-extract/src/table.rs",
+    "crates/gs-extract/src/generic.rs",
+    "crates/gs-extract/src/actions.rs",
+    "crates/gs-extract/src/lib.rs",
+    "crates/gs-observe/src/lib.rs",
+    "crates/gs-transport/src/cdp.rs",
+    "packages/vs-stagehand/src/runners/groundstate.ts",
+    "packages/suite-b/src/cdp.ts"
+  ],
+  "readonly_files": [
+    "crates/gs-types/src/entity.rs",
+    "crates/gs-types/src/observation.rs",
+    "crates/gs-extract/src/extraction_tests.rs",
+    "packages/vs-stagehand/src/tasks/hn-extract.ts",
+    "packages/vs-stagehand/src/tasks/hn-navigate.ts",
+    "packages/vs-stagehand/src/tasks/wiki-table.ts",
+    "packages/vs-stagehand/src/types.ts"
+  ],
+  "tag": "mar31",
+  "no_new_dependencies": true
+}

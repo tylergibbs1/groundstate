@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
+use reqwest::Url;
 use gs_types::*;
 use serde_json::{Value, json};
 use tokio::net::TcpStream;
@@ -46,6 +48,42 @@ impl CdpTransport {
             event_tx,
             current_url: Arc::new(Mutex::new(String::new())),
         }
+    }
+
+    pub fn ws_url(&self) -> &str {
+        &self.ws_url
+    }
+
+    pub async fn reconnect(&mut self, ws_url: impl Into<String>) -> Result<(), TransportError> {
+        self.disconnect().await?;
+        self.ws_url = ws_url.into();
+        self.connect().await
+    }
+
+    pub async fn follow_latest_page_target(&mut self) -> Result<Option<String>, TransportError> {
+        let debug_base = self.debugger_http_base()?;
+        let response = reqwest::get(format!("{debug_base}/json/list"))
+            .await
+            .map_err(|e| TransportError::ConnectionFailed(e.to_string()))?;
+        let targets = response
+            .json::<Vec<Value>>()
+            .await
+            .map_err(|e| TransportError::Serialization(e.to_string()))?;
+
+        let next_ws_url = targets
+            .iter()
+            .rev()
+            .filter(|target| target["type"].as_str() == Some("page"))
+            .filter_map(|target| target["webSocketDebuggerUrl"].as_str())
+            .find(|candidate| *candidate != self.ws_url)
+            .map(ToOwned::to_owned);
+
+        if let Some(ws_url) = next_ws_url {
+            self.reconnect(ws_url.clone()).await?;
+            return Ok(Some(ws_url));
+        }
+
+        Ok(None)
     }
 
     /// Send a CDP command and wait for the response.
@@ -179,11 +217,50 @@ impl CdpTransport {
 
         Ok((x, y))
     }
+
+    fn debugger_http_base(&self) -> Result<String, TransportError> {
+        let url = Url::parse(&self.ws_url)
+            .map_err(|e| TransportError::ConnectionFailed(e.to_string()))?;
+        let host = url
+            .host_str()
+            .ok_or_else(|| TransportError::ConnectionFailed("missing websocket host".into()))?;
+        let port = url
+            .port_or_known_default()
+            .ok_or_else(|| TransportError::ConnectionFailed("missing websocket port".into()))?;
+        Ok(format!("http://{host}:{port}"))
+    }
 }
 
 enum ResolvedTarget {
     NodeId(i64),
     BackendNodeId(i64),
+}
+
+struct ClickObservation {
+    url: String,
+    title: String,
+    dom_node_count: u64,
+    body_text_hash: String,
+    target_present: bool,
+    target_hash: String,
+    navigational_hint: bool,
+}
+
+impl ClickObservation {
+    fn changed_from(&self, before: &Self) -> bool {
+        self.url != before.url
+            || self.title != before.title
+            || self.dom_node_count != before.dom_node_count
+            || self.body_text_hash != before.body_text_hash
+            || self.target_present != before.target_present
+            || self.target_hash != before.target_hash
+    }
+}
+
+fn stable_hash(value: &str) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
 }
 
 #[async_trait]
@@ -258,6 +335,24 @@ impl BrowserTransport for CdpTransport {
                             dialog_type: params["type"].as_str().unwrap_or("").to_string(),
                             message: params["message"].as_str().unwrap_or("").to_string(),
                         }),
+                        "Page.windowOpen" => Some(BrowserEvent::WindowOpened {
+                            url: params["url"].as_str().unwrap_or("").to_string(),
+                            window_name: params["windowName"].as_str().unwrap_or("").to_string(),
+                        }),
+                        "Target.targetCreated" => Some(BrowserEvent::TargetCreated {
+                            target_id: params["targetInfo"]["targetId"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                            target_type: params["targetInfo"]["type"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                            url: params["targetInfo"]["url"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_string(),
+                        }),
                         _ => None,
                     };
 
@@ -273,6 +368,9 @@ impl BrowserTransport for CdpTransport {
         self.send_command("DOM.enable", json!({})).await?;
         self.send_command("Network.enable", json!({})).await?;
         self.send_command("Runtime.enable", json!({})).await?;
+        let _ = self
+            .send_command("Target.setDiscoverTargets", json!({"discover": true}))
+            .await;
 
         Ok(())
     }
@@ -417,6 +515,8 @@ impl BrowserTransport for CdpTransport {
 
     async fn click(&mut self, target: &TargetRef) -> Result<(), TransportError> {
         let resolved = self.resolve_target(target).await?;
+        let before = self.capture_click_observation(target).await?;
+        let mut event_rx = self.event_tx.subscribe();
         let (x, y) = self.get_click_point(&resolved).await?;
 
         // Dispatch mouse events: move, press, release
@@ -437,6 +537,9 @@ impl BrowserTransport for CdpTransport {
             json!({"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1}),
         )
         .await?;
+
+        self.wait_for_click_transition(target, &before, &mut event_rx)
+            .await?;
 
         Ok(())
     }
@@ -497,5 +600,146 @@ impl BrowserTransport for CdpTransport {
 
     async fn current_url(&self) -> Result<String, TransportError> {
         Ok(self.current_url.lock().await.clone())
+    }
+}
+
+impl CdpTransport {
+    async fn capture_click_observation(
+        &mut self,
+        target: &TargetRef,
+    ) -> Result<ClickObservation, TransportError> {
+        let selector = match target {
+            TargetRef::Selector { selector } => Some(selector.as_str()),
+            _ => None,
+        };
+
+        let script = format!(
+            r##"
+            (() => {{
+              const normalize = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+              const selector = {selector};
+              let target = null;
+              if (selector) {{
+                try {{
+                  target = document.querySelector(selector);
+                }} catch {{
+                  target = null;
+                }}
+              }}
+              const bodyText = normalize(document.body?.innerText || document.body?.textContent || "").slice(0, 4000);
+              const targetState = target
+                ? normalize([
+                    target.outerHTML,
+                    target.getAttribute("aria-expanded"),
+                    target.getAttribute("aria-pressed"),
+                    target.getAttribute("aria-selected"),
+                    target.getAttribute("aria-checked"),
+                    "value" in target ? target.value : "",
+                    "checked" in target ? String(Boolean(target.checked)) : "",
+                    document.activeElement === target ? "focused" : "",
+                  ].join("|")).slice(0, 3000)
+                : "";
+              const isNavigational = Boolean(
+                target &&
+                (target.tagName?.toLowerCase() === "a" ||
+                  (typeof target.getAttribute === "function" &&
+                    target.getAttribute("href") &&
+                    !String(target.getAttribute("href")).startsWith("#")))
+              );
+              return {{
+                title: document.title || "",
+                domNodeCount: document.querySelectorAll("body *").length,
+                bodyTextHash: bodyText,
+                targetPresent: Boolean(target),
+                targetHash: targetState,
+                navigationalHint: isNavigational,
+              }};
+            }})()
+            "##,
+            selector = serde_json::to_string(&selector).map_err(|e| TransportError::Serialization(e.to_string()))?,
+        );
+
+        let raw = self.evaluate_js(&script).await?;
+        let title = raw
+            .get("title")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_string();
+        let dom_node_count = raw
+            .get("domNodeCount")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0);
+        let body_text_hash = stable_hash(
+            raw.get("bodyTextHash")
+                .and_then(|value| value.as_str())
+                .unwrap_or(""),
+        );
+        let target_present = raw
+            .get("targetPresent")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        let target_hash = stable_hash(
+            raw.get("targetHash")
+                .and_then(|value| value.as_str())
+                .unwrap_or(""),
+        );
+        let navigational_hint = raw
+            .get("navigationalHint")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+
+        Ok(ClickObservation {
+            url: self.current_url().await?,
+            title,
+            dom_node_count,
+            body_text_hash,
+            target_present,
+            target_hash,
+            navigational_hint,
+        })
+    }
+
+    async fn wait_for_click_transition(
+        &mut self,
+        target: &TargetRef,
+        before: &ClickObservation,
+        event_rx: &mut broadcast::Receiver<BrowserEvent>,
+    ) -> Result<(), TransportError> {
+        let timeout_ms = if before.navigational_hint { 2_500 } else { 1_200 };
+        let started = tokio::time::Instant::now();
+
+        loop {
+            tokio::select! {
+                event = event_rx.recv() => {
+                    match event {
+                        Ok(BrowserEvent::WindowOpened { .. }
+                            | BrowserEvent::TargetCreated { .. }
+                            | BrowserEvent::FrameNavigated { .. }
+                            | BrowserEvent::LoadComplete { .. }) => {
+                            return Ok(());
+                        }
+                        Ok(_) => {}
+                        Err(broadcast::error::RecvError::Lagged(_)) => {}
+                        Err(broadcast::error::RecvError::Closed) => {}
+                    }
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                    let current = self.capture_click_observation(target).await?;
+                    if current.changed_from(before) {
+                        return Ok(());
+                    }
+
+                    if started.elapsed() >= std::time::Duration::from_millis(timeout_ms) {
+                        return Err(TransportError::NoObservableTransition(
+                            match target {
+                                TargetRef::Selector { selector } => selector.clone(),
+                                TargetRef::BackendNodeId { id } => format!("backend-node:{id}"),
+                                TargetRef::EntityId { entity_id } => format!("entity:{entity_id:?}"),
+                            },
+                        ));
+                    }
+                }
+            }
+        }
     }
 }

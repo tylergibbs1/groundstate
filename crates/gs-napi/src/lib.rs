@@ -6,6 +6,7 @@ use base64::Engine;
 use gs_execute::SessionState;
 use gs_execute::plugins::PluginRegistration;
 use gs_extract::actions::ActionDeriver;
+use gs_graph::StateGraph;
 use gs_reactive::{ReactiveConfig, ReactiveController};
 use gs_transport::BrowserTransport;
 use gs_transport::cdp::CdpTransport;
@@ -446,6 +447,38 @@ impl NativeSession {
             .type_text(&TargetRef::Selector { selector }, &text)
             .await
             .map_err(|e| Error::from_reason(format!("type_into_selector failed: {e}")))
+    }
+
+    /// Follow the newest page target if a click opened a new tab/window.
+    #[napi]
+    pub async fn follow_latest_page_target(&self) -> Result<String> {
+        let mut transport = self.transport.lock().await;
+        let switched = transport
+            .follow_latest_page_target()
+            .await
+            .map_err(|e| Error::from_reason(format!("follow_latest_page_target failed: {e}")))?;
+
+        let Some(_) = switched else {
+            return Ok(String::new());
+        };
+
+        let mut state = self.state.lock().await;
+        state.graph = StateGraph::new();
+        let before_keys = snapshot_key_set(&state);
+
+        let observation = state
+            .observer
+            .observe(&mut *transport)
+            .await
+            .map_err(|e| Error::from_reason(format!("follow_latest_page_target observe failed: {e}")))?;
+        let pipeline = std::mem::take(&mut state.pipeline);
+        let ids = pipeline.extract_and_upsert(&observation, &mut state.graph);
+        state.pipeline = pipeline;
+        state.tracer.record_navigation(&observation.url, Some(200));
+        state.tracer.record_extraction("target_switch", ids.len(), 0);
+        record_graph_snapshot(&state, "target_switch", &observation.url, &before_keys);
+
+        Ok(observation.url)
     }
 
     /// Close the session and disconnect from the browser.

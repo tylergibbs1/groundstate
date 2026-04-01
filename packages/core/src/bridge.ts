@@ -34,6 +34,7 @@ export interface Bridge {
   currentUrl?(): Promise<string>;
   clickSelector?(selector: string): Promise<void>;
   typeIntoSelector?(selector: string, text: string): Promise<void>;
+  followLatestPageTarget?(): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -188,7 +189,8 @@ export class NapiBridge implements Bridge {
         this.logger.warn("graph subscription error", { error: err.message });
         return;
       }
-      const diff = JSON.parse(diffJson) as GraphDiff;
+      const raw = JSON.parse(diffJson) as GraphDiff | { graph?: GraphDiff; actions?: unknown[] };
+      const diff = normalizeGraphDiff(raw);
       callback(diff);
     });
   }
@@ -257,11 +259,50 @@ export class NapiBridge implements Bridge {
     await this.native.typeIntoSelector(selector, text);
   }
 
+  /** Switch to the newest page target if the browser opened a new tab/window. */
+  async followLatestPageTarget(): Promise<string> {
+    if (!this.native.followLatestPageTarget) {
+      return "";
+    }
+    return this.native.followLatestPageTarget();
+  }
+
   /** Close the native session and release resources. */
   async close(): Promise<void> {
     this.logger.debug("bridge closed");
     await this.native.close();
   }
+}
+
+function isFlatGraphDiff(
+  raw: GraphDiff | { graph?: GraphDiff; actions?: unknown[] },
+): raw is GraphDiff {
+  return "graph_version" in raw || "upserted" in raw || "invalidated" in raw || "removed" in raw;
+}
+
+function normalizeGraphDiff(
+  raw: GraphDiff | { graph?: GraphDiff; actions?: unknown[] },
+): GraphDiff {
+  if (isFlatGraphDiff(raw)) {
+    return {
+      graph_version: raw.graph_version ?? 0,
+      upserted: raw.upserted ?? [],
+      invalidated: raw.invalidated ?? [],
+      removed: raw.removed ?? [],
+      actions: raw.actions ?? [],
+      resync: typeof raw.resync === "boolean" ? raw.resync : undefined,
+    };
+  }
+
+  const graph = raw.graph;
+  return {
+    graph_version: graph?.graph_version ?? 0,
+    upserted: graph?.upserted ?? [],
+    invalidated: graph?.invalidated ?? [],
+    removed: graph?.removed ?? [],
+    actions: raw.actions ?? [],
+    resync: typeof graph?.resync === "boolean" ? graph.resync : undefined,
+  };
 }
 
 /**
@@ -287,5 +328,6 @@ export interface NativeSessionLike {
   currentUrl?(): Promise<string>;
   clickSelector?(selector: string): Promise<void>;
   typeIntoSelector?(selector: string, text: string): Promise<void>;
+  followLatestPageTarget?(): Promise<string>;
   close(): Promise<void>;
 }

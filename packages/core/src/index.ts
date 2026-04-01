@@ -73,6 +73,7 @@ export type {
   OverlayAction,
   OverlayEntityGroup,
   OverlayTraceEntry,
+  HighlightEntity,
 } from "./overlay/index.js";
 
 // Logging

@@ -1,140 +1,147 @@
 /**
- * Overlay UI — Apple-esque design, layman-friendly content.
+ * Overlay UI — compact live inspector.
  *
- * Shows what the agent is doing, what it found, and a plain-English
- * activity log. No entity counts, graph versions, or trace types.
- * Frosted glass, SF Pro, tight geometry.
+ * Keeps the existing Groundstate data model, but shifts the visual treatment
+ * closer to a modern scan/debug overlay: always-on, compact, fast, and calm.
  */
 
 const OVERLAY_CSS = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :host {
-  font-family: -apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
-  font-size: 13px;
-  color: #1d1d1f;
-  line-height: 1.4;
+  font-family: 'Geist Mono', 'SF Mono', 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 .gs {
   position: fixed;
-  bottom: 16px;
+  top: 16px;
   right: 16px;
-  width: 300px;
+  width: 340px;
   pointer-events: auto;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  border: 0.5px solid rgba(0, 0, 0, 0.12);
-  box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.04),
-    0 4px 24px rgba(0, 0, 0, 0.08),
-    0 1px 3px rgba(0, 0, 0, 0.06);
-  transition: opacity 0.25s ease, transform 0.25s ease;
   user-select: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  :host { color: #f5f5f7; }
-  .gs {
-    background: rgba(30, 30, 30, 0.72);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 0 0 0.5px rgba(255, 255, 255, 0.04),
-      0 4px 24px rgba(0, 0, 0, 0.3),
-      0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-  .gs-activity-item { color: #a1a1a6; }
-  .gs-status-label { color: #f5f5f7; }
-  .gs-status-detail { color: #a1a1a6; }
-  .gs-header { border-bottom-color: rgba(255, 255, 255, 0.06); }
-  .gs-section { border-top-color: rgba(255, 255, 255, 0.06); }
-  .gs-pill { background: rgba(255, 255, 255, 0.08); color: #a1a1a6; }
-  .gs-collapse-btn { color: #a1a1a6; }
-  .gs-collapse-btn:hover { background: rgba(255, 255, 255, 0.08); }
+  background:
+    linear-gradient(180deg, rgba(18, 24, 38, 0.92), rgba(8, 12, 22, 0.88)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 42%);
+  backdrop-filter: blur(30px) saturate(1.35);
+  -webkit-backdrop-filter: blur(30px) saturate(1.35);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.45),
+    0 16px 48px rgba(2, 6, 23, 0.42),
+    0 0 48px rgba(59, 130, 246, 0.08);
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .gs.collapsed .gs-body { display: none; }
 
-/* ── Header ── */
+.gs.dragging {
+  opacity: 0.96;
+  transform: scale(0.995);
+  transition: none;
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.28),
+    0 22px 56px rgba(2, 6, 23, 0.5),
+    0 0 60px rgba(59, 130, 246, 0.12);
+}
+
 .gs-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px 10px;
+  gap: 12px;
+  padding: 12px 14px;
   cursor: grab;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015));
 }
 .gs-header:active { cursor: grabbing; }
 
 .gs-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .gs-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: #34c759;
+  border-radius: 999px;
+  background: #22c55e;
   flex-shrink: 0;
-  transition: background 0.3s ease;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08), 0 0 10px rgba(34, 197, 94, 0.45);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 .gs-dot.working {
-  background: #007aff;
-  animation: gs-breathe 1.8s ease-in-out infinite;
+  background: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.09), 0 0 14px rgba(59, 130, 246, 0.55);
+  animation: gs-breathe 1.5s ease-in-out infinite;
 }
-.gs-dot.error { background: #ff3b30; }
+.gs-dot.error {
+  background: #f87171;
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.08), 0 0 12px rgba(248, 113, 113, 0.4);
+}
 
 @keyframes gs-breathe {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.28); opacity: 0.5; }
 }
 
 .gs-header-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.7);
 }
 
 .gs-collapse-btn {
-  background: none;
-  border: none;
-  color: #86868b;
+  min-width: 28px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  color: rgba(226, 232, 240, 0.55);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 11px;
+  font-family: inherit;
   line-height: 1;
-  padding: 2px 4px;
-  border-radius: 6px;
-  transition: background 0.15s;
+  padding: 0 8px;
+  border-radius: 999px;
+  transition: all 0.15s ease;
 }
-.gs-collapse-btn:hover { background: rgba(0, 0, 0, 0.05); }
+.gs-collapse-btn:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(96, 165, 250, 0.24);
+  color: rgba(241, 245, 249, 0.9);
+}
 
-/* ── Body ── */
 .gs-body { padding: 0; }
 
-/* ── Status ── */
 .gs-status {
-  padding: 12px 14px;
+  padding: 14px 14px 12px;
 }
 
 .gs-status-label {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #f8fafc;
   letter-spacing: -0.02em;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .gs-status-detail {
-  font-size: 12px;
-  color: #86868b;
+  font-size: 11px;
+  color: rgba(191, 219, 254, 0.72);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-/* ── Pills row ── */
 .gs-pills {
   display: flex;
   gap: 6px;
@@ -145,36 +152,60 @@ const OVERLAY_CSS = `
 .gs-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 500;
-  background: rgba(0, 0, 0, 0.04);
-  color: #86868b;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  color: rgba(226, 232, 240, 0.44);
 }
 
 .gs-pill-value {
-  font-weight: 600;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: #f8fafc;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gs-pill-value { color: #f5f5f7; }
+.gs-entities {
+  padding: 0 14px 12px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
-/* ── Activity feed ── */
+.gs-entity-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--gs-tag-color, rgba(255,255,255,0.1)) 58%, transparent);
+  color: var(--gs-tag-color, rgba(255,255,255,0.52));
+  background: color-mix(in srgb, var(--gs-tag-color, rgba(255,255,255,0.04)) 9%, rgba(15,23,42,0.55));
+}
+
+.gs-entity-count {
+  opacity: 0.72;
+}
+
 .gs-section {
-  border-top: 0.5px solid rgba(0, 0, 0, 0.06);
-  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  padding: 12px 14px 14px;
 }
 
 .gs-section-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #86868b;
+  letter-spacing: 0.14em;
+  color: rgba(148, 163, 184, 0.55);
   margin-bottom: 8px;
 }
 
@@ -182,38 +213,62 @@ const OVERLAY_CSS = `
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 140px;
+  max-height: 168px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 .gs-activity::-webkit-scrollbar { display: none; }
 
 .gs-activity-item {
-  font-size: 12px;
-  color: #6e6e73;
-  line-height: 1.35;
-  padding: 2px 0;
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.54);
+  line-height: 1.45;
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(15, 23, 42, 0.28);
 }
 
 .gs-activity-item.latest {
-  color: #1d1d1f;
-  font-weight: 500;
-}
-
-@media (prefers-color-scheme: dark) {
-  .gs-activity-item.latest { color: #f5f5f7; }
+  color: #f8fafc;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.14), rgba(15, 23, 42, 0.35));
 }
 
 .gs-empty {
-  font-size: 12px;
-  color: #aeaeb2;
-  font-style: italic;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.48);
 }
 
-/* ── Drag ── */
-.gs.dragging {
-  opacity: 0.9;
-  transition: none;
+.gs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.gs-footer-label {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.48);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gs-footer-version {
+  font-size: 10px;
+  color: rgba(96, 165, 250, 0.84);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.gs-footer-version.flash {
+  animation: gs-version-flash 0.45s ease-out;
+}
+
+@keyframes gs-version-flash {
+  0% { color: rgba(191, 219, 254, 1); }
+  100% { color: rgba(96, 165, 250, 0.84); }
 }
 `;
 
@@ -221,22 +276,27 @@ const OVERLAY_HTML = `
 <div class="gs-header" data-gs-drag>
   <div class="gs-header-left">
     <div class="gs-dot" data-gs-dot></div>
-    <span class="gs-header-title">groundstate</span>
+    <span class="gs-header-title">groundstate scan</span>
   </div>
-  <button class="gs-collapse-btn" data-gs-toggle title="Toggle">\u2303</button>
+  <button class="gs-collapse-btn" data-gs-toggle>−</button>
 </div>
 <div class="gs-body">
   <div class="gs-status">
-    <div class="gs-status-label" data-gs-label>Starting up\u2026</div>
+    <div class="gs-status-label" data-gs-label>Initializing…</div>
     <div class="gs-status-detail" data-gs-detail></div>
   </div>
   <div class="gs-pills" data-gs-pills></div>
+  <div class="gs-entities" data-gs-entities></div>
   <div class="gs-section">
     <div class="gs-section-title">Activity</div>
     <div class="gs-activity" data-gs-feed>
-      <div class="gs-empty">Waiting for first action\u2026</div>
+      <div class="gs-empty">Waiting for first event…</div>
     </div>
   </div>
+</div>
+<div class="gs-footer">
+  <span class="gs-footer-label">graph</span>
+  <span class="gs-footer-version" data-gs-version>v0</span>
 </div>
 `;
 
@@ -265,6 +325,7 @@ export function buildOverlayScript(): string {
   var toggle = shadow.querySelector('[data-gs-toggle]');
   toggle.addEventListener('click', function() {
     container.classList.toggle('collapsed');
+    toggle.textContent = container.classList.contains('collapsed') ? '+' : '−';
   });
 
   var header = shadow.querySelector('[data-gs-drag]');
@@ -292,6 +353,16 @@ export function buildOverlayScript(): string {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  var kindColors = {
+    table: '#3b82f6', tablerow: '#3b82f6',
+    form: '#8b5cf6', formfield: '#8b5cf6',
+    button: '#06b6d4', link: '#06b6d4',
+    modal: '#f59e0b', dialog: '#f59e0b',
+    menu: '#10b981', tab: '#10b981',
+    list: '#6366f1', listitem: '#6366f1',
+    searchresult: '#ec4899', pagination: '#64748b'
+  };
+
   window.__gs_overlay = {
     update: function(state) {
       var dot = shadow.querySelector('[data-gs-dot]');
@@ -310,6 +381,18 @@ export function buildOverlayScript(): string {
         pills.style.display = 'none';
       }
 
+      var entities = shadow.querySelector('[data-gs-entities]');
+      if (state.entitySummary && state.entitySummary.length > 0) {
+        entities.innerHTML = state.entitySummary.map(function(e) {
+          var color = kindColors[e.kind.toLowerCase()] || '#94a3b8';
+          return '<span class="gs-entity-tag" style="--gs-tag-color:' + color + '">' +
+            esc(e.kind) + ' <span class="gs-entity-count">' + e.count + '</span></span>';
+        }).join('');
+        entities.style.display = '';
+      } else {
+        entities.style.display = 'none';
+      }
+
       var feed = shadow.querySelector('[data-gs-feed]');
       if (state.activity && state.activity.length > 0) {
         feed.innerHTML = state.activity.map(function(item, i) {
@@ -317,6 +400,17 @@ export function buildOverlayScript(): string {
           return '<div class="' + cls + '">' + esc(item) + '</div>';
         }).join('');
         feed.scrollTop = feed.scrollHeight;
+      }
+
+      var ver = shadow.querySelector('[data-gs-version]');
+      if (state.graphVersion != null) {
+        var newText = 'v' + state.graphVersion;
+        if (ver.textContent !== newText) {
+          ver.textContent = newText;
+          ver.classList.remove('flash');
+          void ver.offsetWidth;
+          ver.classList.add('flash');
+        }
       }
     },
 
@@ -337,22 +431,16 @@ export function buildDestroyScript(): string {
   return `(function() { if (window.__gs_overlay) window.__gs_overlay.destroy(); })()`;
 }
 
-// ── View state pushed to the browser ──
-
 export interface OverlayViewState {
-  /** Dot color class: "" (green/idle), "working" (blue/pulse), "error" (red) */
   dotClass: "" | "working" | "error";
-  /** Main status line, e.g. "Browsing page…" or "Found 3 results" */
   label: string;
-  /** Secondary detail, e.g. "sfbay.craigslist.org" */
   detail: string;
-  /** Small pills, e.g. [{label:"pages",value:"2"}, {label:"actions",value:"5"}] */
   pills: { label: string; value: string }[];
-  /** Human-readable activity feed, newest last */
   activity: string[];
+  entitySummary?: { kind: string; count: number }[];
+  graphVersion?: number;
 }
 
-// Keep legacy type exports for index.ts re-exports
 export type OverlayState = OverlayViewState;
 export type OverlayAction = { type: string; name: string; result?: string };
 export type OverlayEntityGroup = { kind: string; count: number; status: string };

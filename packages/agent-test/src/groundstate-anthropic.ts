@@ -280,10 +280,17 @@ async function main() {
 
         if (block.type === "tool_use") {
           issuedTool = true;
-          const result = await handleTool(
-            block.name,
-            block.input as Record<string, unknown>,
-          );
+          let result: ToolResult;
+          try {
+            result = await handleTool(
+              block.name,
+              block.input as Record<string, unknown>,
+            );
+          } catch (err) {
+            result = JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
           console.log(`\n[tool:${block.name}]`);
           console.log(result);
           messages.push({
@@ -494,6 +501,14 @@ async function findEntitiesByIds(ids: string[]): Promise<Entity[]> {
 }
 
 function toLocatorQuery(input: Record<string, unknown>) {
+  const cleanSelector = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const unwrapped = trimmed.replace(/^['"`]+|['"`]+$/g, "");
+    return unwrapped || undefined;
+  };
+
   return {
     role: typeof input.role === "string" ? input.role : undefined,
     text: typeof input.text === "string" ? input.text : undefined,
@@ -501,7 +516,7 @@ function toLocatorQuery(input: Record<string, unknown>) {
     title: typeof input.title === "string" ? input.title : undefined,
     placeholder:
       typeof input.placeholder === "string" ? input.placeholder : undefined,
-    selector: typeof input.selector === "string" ? input.selector : undefined,
+    selector: cleanSelector(input.selector),
     exact: typeof input.exact === "boolean" ? input.exact : undefined,
     limit: typeof input.limit === "number" ? input.limit : undefined,
   };
