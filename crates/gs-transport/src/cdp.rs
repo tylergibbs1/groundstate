@@ -517,6 +517,16 @@ impl BrowserTransport for CdpTransport {
         let resolved = self.resolve_target(target).await?;
         let before = self.capture_click_observation(target).await?;
         let mut event_rx = self.event_tx.subscribe();
+
+        // Scroll the element into the viewport so the click point lands on-screen.
+        let scroll_params = match &resolved {
+            ResolvedTarget::NodeId(id) => json!({"nodeId": id}),
+            ResolvedTarget::BackendNodeId(id) => json!({"backendNodeId": id}),
+        };
+        let _ = self
+            .send_command("DOM.scrollIntoViewIfNeeded", scroll_params)
+            .await;
+
         let (x, y) = self.get_click_point(&resolved).await?;
 
         // Dispatch mouse events: move, press, release
