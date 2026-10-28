@@ -1,55 +1,19 @@
 # Groundstate
 
+[![CI](https://github.com/tylergibbs1/groundstate/actions/workflows/ci.yml/badge.svg)](https://github.com/tylergibbs1/groundstate/actions/workflows/ci.yml)
+
 Reactive browser runtime that gives agents durable semantic state across page mutations, rerenders, and navigation.
 
 Instead of treating every page load as a blank slate, Groundstate extracts semantic entities from the DOM, tracks them through a versioned state graph, and validates pre/postconditions so agents can plan through UI churn rather than retrying from scratch.
 
-## How it works
+## Getting started
 
-1. **Extract** -- observe a page and pull structured entities (tables, forms, buttons, links) from raw DOM
-2. **Graph** -- upsert entities into a versioned state graph that survives mutations, rerenders, and content replacement
-3. **React** -- continuous observation loop keeps the graph in sync with the browser automatically. Agents subscribe to state; the system pushes changes. No polling, no manual refresh
-4. **Validate** -- check pre/postconditions against the graph to know whether an action is still valid or needs replanning
-5. **Trace** -- record every observation, mutation, action, and recovery for replay and evaluation
-
-The core engine is Rust, exposed to Node.js via NAPI-rs. TypeScript packages provide the runtime, session management, and evaluation framework.
-
-## Project structure
-
-```
-crates/                Rust workspace
-  gs-types/            Shared types: entities, conditions, traces, actions
-  gs-graph/            StateGraph -- entity upsert, versioning, invalidation
-  gs-extract/          ExtractorPipeline -- entities from raw observations
-  gs-validate/         Pre/postcondition evaluation against graph state
-  gs-trace/            Execution trace recording
-  gs-observe/          Page snapshot capture (DOM, a11y)
-  gs-transport/        CDP transport layer
-  gs-execute/          Action execution with plugin system
-  gs-reactive/         Continuous observation loop + reactive diffs
-  gs-napi/             NAPI-rs bindings (Node.js native module)
-  gs-demo/             Full vertical slice demo
-
-packages/              TypeScript workspace (pnpm)
-  napi/                @groundstate/napi -- npm wrapper for gs-napi
-  core/                @groundstate/core -- runtime, session, entity bridge
-  eval/                @groundstate/eval -- metrics, assertions, golden traces
-  suite-b/             Semantic benchmark -- 29 tests across 3 mutation buckets
-  vs-stagehand/        Head-to-head benchmark vs Stagehand on live websites
-  agent-test/          Agent SDK integration tests
-  inspector/           Next.js UI for inspecting runtime state
-
-fixtures/              HTML test pages for benchmark scenarios
-```
-
-## Prerequisites
+You need:
 
 - **Node.js 22+** (pinned in `.node-version`)
 - **pnpm 10+**
 - **Rust stable** (pinned in `rust-toolchain.toml`, includes clippy + rustfmt)
 - **Chrome** (for semantic benchmarks)
-
-## Getting started
 
 ```sh
 git clone https://github.com/tylergibbs1/groundstate.git
@@ -67,6 +31,16 @@ just test                         # all unit tests
 just bench                        # semantic benchmark (needs Chrome)
 just ci                           # full CI pipeline locally
 ```
+
+## How it works
+
+1. **Extract** -- observe a page and pull structured entities (tables, forms, buttons, links) from raw DOM
+2. **Graph** -- upsert entities into a versioned state graph that survives mutations, rerenders, and content replacement
+3. **React** -- continuous observation loop keeps the graph in sync with the browser automatically. Agents subscribe to state; the system pushes changes. No polling, no manual refresh
+4. **Validate** -- check pre/postconditions against the graph to know whether an action is still valid or needs replanning
+5. **Trace** -- record every observation, mutation, action, and recovery for replay and evaluation
+
+The core engine is Rust, exposed to Node.js via NAPI-rs. TypeScript packages provide the runtime, session management, and evaluation framework.
 
 ## Semantic benchmark
 
@@ -135,6 +109,34 @@ just inspector      # Next.js inspector dev server
 ```
 
 All scripts are also available via `pnpm` -- see `package.json`.
+
+### Project structure
+
+```
+crates/                Rust workspace
+  gs-types/            Shared types: entities, conditions, traces, actions
+  gs-graph/            StateGraph -- entity upsert, versioning, invalidation
+  gs-extract/          ExtractorPipeline -- entities from raw observations
+  gs-validate/         Pre/postcondition evaluation against graph state
+  gs-trace/            Execution trace recording
+  gs-observe/          Page snapshot capture (DOM, a11y)
+  gs-transport/        CDP transport layer
+  gs-execute/          Action execution with plugin system
+  gs-reactive/         Continuous observation loop + reactive diffs
+  gs-napi/             NAPI-rs bindings (Node.js native module)
+  gs-demo/             Full vertical slice demo
+
+packages/              TypeScript workspace (pnpm)
+  napi/                @groundstate/napi -- npm wrapper for gs-napi
+  core/                @groundstate/core -- runtime, session, entity bridge
+  eval/                @groundstate/eval -- metrics, assertions, golden traces
+  suite-b/             Semantic benchmark -- 29 tests across 3 mutation buckets
+  vs-stagehand/        Head-to-head benchmark vs Stagehand on live websites
+  agent-test/          Agent SDK integration tests
+  inspector/           Next.js UI for inspecting runtime state
+
+fixtures/              HTML test pages for benchmark scenarios
+```
 
 ## License
 
